@@ -5,7 +5,7 @@ const IMG_HEIGHT: u32 = 256;
 const IMG_WIDTH: u32 = 256;
 
 fn main() -> io::Result<()> {
-    let mut file = File::create("./img.ppm")?;
+    let mut file = File::create("./images/img.ppm")?;
     writeln!(file, "P3")?;
     writeln!(file, "{} {}", IMG_WIDTH, IMG_HEIGHT)?;
     writeln!(file, "255")?;

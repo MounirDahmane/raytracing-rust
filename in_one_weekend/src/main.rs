@@ -1,36 +1,46 @@
 mod color;
 mod ray;
-/// use cargo run --release > image.ppm
 mod vec3;
 
 use crate::color::{write_color, Color};
 use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
 
+
 // Image
 const ASPECT_RATIO: f64 = 16.0 / 9.0;
 const IMG_WIDTH: u32 = 512;
 
-fn hit_sphere(center: &Point3, radius: f64, r: &Ray) -> bool {
-    let oc = *center - r.origin();
-    let a = Vec3::dot(&r.direction(), &r.direction());
+
+//color map: n is a unit length => x, y, z E (-1.0, 1.0) ==> (0.0, 1.0) => (red, green, blue)
+fn hit_sphere(center: &Point3, radius: f64, r: &Ray) -> f64 {
+    let oc: Vec3 = *center - r.origin();
+    let a: f64 = Vec3::dot(&r.direction(), &r.direction());
     let b = -2.0 * Vec3::dot(&r.direction(), &oc);
     let c = Vec3::dot(&oc, &oc) - radius * radius;
     let discriminant = b * b - 4.0 * a * c;
 
-    discriminant >= 0.0
+    if discriminant < 0.0 {
+        -1.0
+    }
+    else{
+        (-b - discriminant.sqrt()) / (2.0 * a)
+    }
 }
 
 fn ray_color(r: &Ray) -> Color {
 
-    if hit_sphere(&Point3::new(0.0,0.0,-1.0), 0.5, r){
-        return Color::new(255.0/255.0, 100.0/255.0, 255.0/255.0);
+    let t = hit_sphere(&Point3::new(0.0,0.0,-1.0), 0.5, r); 
+    if t > 0.0 {
+        let n: Vec3 = Vec3::unit_vector(r.at(t) - Vec3::new(0.0,0.0,-1.0));
+        return 0.5 * Color::new(n.x() + 1.0, n.y() + 1.0, n.z() + 1.0);
+        //return Color::new(255.0/255.0, 100.0/255.0, 255.0/255.0);
     }
 
     let unit_direction = Vec3::unit_vector(r.direction());
-    let a = 0.5 * (unit_direction.y() + 1.0);
+    let a: f64 = 0.5 * (unit_direction.y() + 1.0);
 
-    (1.0 - a) * Color::new(1.0, 1.0, 1.0) + a * Color::new(0.5, 0.7, 1.0)
+    (1.0 - a) * Color::new(1.0, 1.0, 1.0) + a * Color::new(0.5, 0.7, 1.0) // blendedValue
 }
 
 fn main() {
@@ -49,7 +59,7 @@ fn main() {
     let viewport_height = 2.0;
     let viewport_width = viewport_height * ((IMG_WIDTH / image_height) as f64);
 
-    let camera_center = Point3::default();
+    let camera_center = Point3::default();  // eye point
 
     // Calculate the vectors across the horizontal and down the vertical viewport edges.
     let viewport_u = Vec3::new(viewport_width, 0.0, 0.0); // Left edge to Right edge

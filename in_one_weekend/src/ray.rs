@@ -1,4 +1,3 @@
-// P(t)=A+tb
 use crate::vec3::Point3;
 use crate::vec3::Vec3;
 
@@ -16,6 +15,7 @@ impl Ray {
         }
     }
 }
+
 impl Default for Ray {
     fn default() -> Self {
         Ray {
@@ -24,6 +24,7 @@ impl Default for Ray {
         }
     }
 }
+
 //getters
 impl Ray {
     pub fn origin(&self) -> Point3 {
@@ -33,6 +34,7 @@ impl Ray {
         self.dir
     }
 }
+
 //utils
 impl Ray {
     pub fn at(&self, t: f64) -> Point3 {
