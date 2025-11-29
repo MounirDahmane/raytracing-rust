@@ -1,0 +1,8 @@
+[package]
+name = "in_one_weekend"
+version = "0.1.0"
+edition = "2024"
+
+default-run = "in_one_weekend" 
+
+[dependencies]
