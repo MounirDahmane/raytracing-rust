@@ -16,6 +16,8 @@ impl Sphere{
     }
 }
 impl Hittable for Sphere{
+    //color map: n is a unit length => x, y, z E (-1.0, 1.0) ==> (0.0, 1.0) => (red, green, blue)
+    
     fn hit(&self, r: &Ray, ray_tmin: f64, ray_tmax: f64, rec: &mut HitRecord) -> bool{
         let oc = self.center - r.origin();
         let a = r.direction().length_squared();

@@ -1,6 +1,7 @@
 use crate::vec3::{Point3, Vec3};
 use crate::Ray;
 
+#[derive(Clone)]
 pub struct HitRecord {
     pub p: Point3,
     pub normal: Vec3,
@@ -8,6 +9,9 @@ pub struct HitRecord {
     pub front_face : bool,
 }
 impl HitRecord {
+    pub fn default() -> Self{
+        HitRecord { p: Point3::default(), normal: Vec3::default(), t: 0.0, front_face: false }
+    }
     pub fn set_face_normal(&mut self, r: &Ray, outward_normal: &Vec3){
         
         // Sets the hit record normal vector.
