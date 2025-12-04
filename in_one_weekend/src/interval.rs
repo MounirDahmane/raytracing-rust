@@ -1,25 +1,38 @@
-const interval interval::empty    = interval(+infinity, -infinity);
-const interval interval::universe = interval(-infinity, +infinity);
+use core::f64;
 
-pub struct interval {
-    pub min : f64,
-    pub max : f64, 
+pub struct Interval {
+    pub min: f64,
+    pub max: f64,
 }
 
-impl interval{
-    interval() : min(+infinity), max(-infinity) {} // Default interval is empty
-    pub fn interval(min: f64, max: f64) -> Self{
-        interval { min, max }
+impl Interval {
+    pub fn new(min: f64, max: f64) -> Self {
+        Interval { min, max }
     }
-    pub fn size() -> f64 {
-        max - min
+    pub fn size(&self) -> f64 {
+        self.max - self.min
     }
-    pub fn contains(x: f64) -> bool{
-        min <= x && x <= max
+    pub fn contains(&self, x: f64) -> bool {
+        self.min <= x && x <= self.max
     }
-    pub fn surrounds(x: f64) -> bool{
-        min < x && x < max
+    pub fn surrounds(&self, x: f64) -> bool {
+        self.min < x && x < self.max
     }
-    interval() : min(+infinity), max(-infinity) {} // Default interval is empty
-    static const interval empty, universe;
+
+    pub const EMPTY: Interval = Interval {
+        min: f64::INFINITY,
+        max: f64::NEG_INFINITY,
+    };
+
+    pub const UNIVERSE: Interval = Interval {
+        min: f64::NEG_INFINITY,
+        max: f64::INFINITY,
+    };
+
+}
+
+impl Default for Interval {
+    fn default() -> Self {
+        Interval::UNIVERSE
+    }
 }
