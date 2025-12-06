@@ -1,10 +1,5 @@
 use crate::{
-    color::{self, Color, write_color},
-    hittable::{HitRecord, Hittable},
-    interval::Interval,
-    ray::Ray,
-    rtweekend::*,
-    vec3::{Point3, Vec3},
+    camera, color::{self, Color, write_color}, hittable::{HitRecord, Hittable}, interval::Interval, ray::Ray, rtweekend::*, vec3::{Point3, Vec3}
 };
 
 use indicatif::ProgressBar;
@@ -14,6 +9,7 @@ pub struct Camera {
     pub aspect_ratio: f64,
     pub img_width: u32,
     pub samples_per_pixel: u32,   // Count of random samples for each pixel
+    pub max_depth: u32,   // Maximum number of ray bounces into scene
 
     image_height : u32,
     pixel_samples_scale: f64,
@@ -24,11 +20,12 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn init(aspect_ratio: f64, img_width: u32, samples_per_pixel: u32) -> Self {
+    pub fn init(aspect_ratio: f64, img_width: u32, samples_per_pixel: u32, max_depth: u32) -> Self {
         let mut camera = Camera {
             aspect_ratio,
             img_width,
             samples_per_pixel,
+            max_depth,
 
             image_height: 0,
             pixel_samples_scale: 0.0,
@@ -44,7 +41,7 @@ impl Camera {
 
 // public
 impl Camera {
-    pub fn render(&self, world: &dyn Hittable) {
+    pub fn render(&mut self, world: &dyn Hittable) {
 
         let stdout = io::stdout();
         let mut out = BufWriter::new(stdout.lock());
@@ -60,8 +57,9 @@ impl Camera {
 
                 let mut pixel_color = color::Color::new(0.0, 0.0, 0.0);
                 for _ in 0..self.samples_per_pixel {
+                    // For each pixel, take multiple stochastic samples (SSAA) and average their colors
                     let r = self.get_ray(i, j);
-                    pixel_color += Camera::ray_color(&r, world);
+                    pixel_color += Camera::ray_color(&r, self.max_depth, world);
                 }
                 pixel_color *= self.pixel_samples_scale;
                 
@@ -114,23 +112,34 @@ impl Camera {
 
     }
 
-    fn ray_color(r: &Ray, world: &dyn Hittable) -> color::Color {
+    fn ray_color(r: &Ray, depth: u32, world: &dyn Hittable) -> color::Color {
+        // If we've exceeded the ray bounce limit, no more light is gathered.
+        if depth <= 0 {
+            return Color::new(0.0, 0.0, 0.0);
+        }
+
         let mut rec = HitRecord::default();
 
-        if world.hit(r, Interval::new(0.0, INFINITY), &mut rec) {
-            return 0.5 * (rec.normal + color::Color::new(1.0, 1.0, 1.0));
+        if world.hit(r, Interval::new(0.001, INFINITY), &mut rec) {
+            // vec3 direction = rec.normal + random_unit_vector();
+            let direction = rec.normal + Vec3::random_unit_vector(); // Lambertian distribution
+            return 0.4 * Camera::ray_color(&Ray::new(rec.p, direction), depth - 1, world);
         }
 
         let unit_direction = Vec3::unit_vector(r.direction());
         let a: f64 = 0.5 * (unit_direction.y() + 1.0);
-
-        (1.0 - a) * color::Color::new(1.0, 1.0, 1.0) + a * color::Color::new(0.5, 0.7, 1.0)
+        
         // blendedValue
+        (1.0 - a) * color::Color::new(1.0, 1.0, 1.0) + a * color::Color::new(0.5, 0.7, 1.0)
     }
 
     fn get_ray(&self, i: u32, j: u32) -> Ray {
         // Construct a camera ray originating from the origin and directed at randomly sampled
         // point around the pixel location i, j.
+
+        // Generate a random offset within the pixel area to perform supersampling (SSAA).
+        // This stochastic sampling reduces aliasing by averaging multiple rays per pixel
+        // with slightly jittered positions instead of just shooting through the pixel center.
 
         let offset = Camera::sample_square();
         let pixel_sample = self.pixel00_loc

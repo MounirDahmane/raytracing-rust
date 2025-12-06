@@ -3,3 +3,5 @@ cargo run --release > ./directory_if_any./name_of_img.ppm
 
 
 to run from the bin directory: cargo run --bin exe_name
+
+books website: https://raytracing.github.io/
