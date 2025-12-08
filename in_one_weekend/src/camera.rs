@@ -1,5 +1,6 @@
 use crate::{
-    camera, color::{self, Color, write_color}, hittable::{HitRecord, Hittable}, interval::Interval, ray::Ray, rtweekend::*, vec3::{Point3, Vec3}
+    camera, color::{self, Color, write_color}, hittable::{HitRecord, Hittable}, interval::Interval, ray::Ray, rtweekend::*, vec3::{Point3, Vec3},
+    material::*
 };
 
 use indicatif::ProgressBar;
@@ -121,9 +122,19 @@ impl Camera {
         let mut rec = HitRecord::default();
 
         if world.hit(r, Interval::new(0.001, INFINITY), &mut rec) {
-            // vec3 direction = rec.normal + random_unit_vector();
-            let direction = rec.normal + Vec3::random_unit_vector(); // Lambertian distribution
-            return 0.4 * Camera::ray_color(&Ray::new(rec.p, direction), depth - 1, world);
+
+            let mut scattered = Ray::default();
+            let mut attenuation = Color::default();
+
+            if let Some(mat) = &rec.mat {
+                if mat.scatter(r, &rec, &mut attenuation, &mut scattered) {
+                    // continue ray
+                    return  attenuation * Camera::ray_color(&scattered, depth - 1, world);
+                } else {
+                    // material absorbed the ray
+                    return Color::new(0.0, 0.0, 0.0);
+                }
+            }
         }
 
         let unit_direction = Vec3::unit_vector(r.direction());

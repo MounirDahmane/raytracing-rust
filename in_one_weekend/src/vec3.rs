@@ -88,9 +88,11 @@ impl Vec3 {
             v / v.length()
         }
     }
+    
     pub fn random() -> Self {
         Self::new(rtweekend::random_double(), rtweekend::random_double(), rtweekend::random_double())
     }
+    
     pub fn random_range(min: f64, max: f64) -> Self {
         Self::new(rtweekend::random_double_range(min, max), rtweekend::random_double_range(min, max), rtweekend::random_double_range(min, max))
     }
@@ -107,6 +109,7 @@ impl Vec3 {
             }
         }
     }
+    
     #[inline]
     pub fn random_on_hemisphere(normal: &Vec3) -> Self{
         let on_unit_sphere = Vec3::random_unit_vector();
@@ -116,6 +119,20 @@ impl Vec3 {
         else {
             return  -on_unit_sphere;
         }
+    }
+    
+    #[inline]
+    pub fn near_zero(&self) -> bool{
+        // Return true if the vector is close to zero in all dimensions.
+        let s = 1e-8;
+        return self.vector[0] < s &&
+            self.vector[1] < s &&
+            self.vector[2] < s ;
+    }
+    
+    #[inline]
+    pub fn reflect(v: &Vec3, n: &Vec3) -> Self{
+        *v - 2.0 * v.dot(n) * *n
     }
 }
     
