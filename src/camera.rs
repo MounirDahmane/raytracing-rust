@@ -187,8 +187,9 @@ impl Camera {
         let ray_origin = if self.defocus_angle <= 0.0 {self.center } else {Camera::defocus_disk_sample(self)};
         let ray_direction = pixel_sample - ray_origin;
 
-        Ray::new(ray_origin, ray_direction)
-
+        let ray_time = random_double();
+        
+        Ray::new(ray_origin, ray_direction, ray_time)
     }
     fn defocus_disk_sample(&self) -> Point3{
         // Returns a random point in the camera defocus disk.
@@ -200,3 +201,5 @@ impl Camera {
         Vec3::new(random_double() - 0.5, random_double() - 0.5, 0.0)
     }
 }
+
+

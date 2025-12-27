@@ -46,7 +46,7 @@ impl Material for lambertian {
             scatter_direction = rec.normal;
         }
 
-        *scattered = Ray::new(rec.p, scatter_direction);
+        *scattered = Ray::new(rec.p, scatter_direction, r_in.time());
         *attenuation = self.albedo;
         true
     }
@@ -73,7 +73,7 @@ impl Material for Metal {
         let mut reflected = Vec3::reflect(&r_in.direction(), &rec.normal);
         reflected = Vec3::unit_vector(reflected) + (self.fuzz * Vec3::random_unit_vector());
 
-        *scattered = Ray::new(rec.p, reflected);
+        *scattered = Ray::new(rec.p, reflected, r_in.time());
         *attenuation = self.albedo;
 
         return scattered.direction().dot(&rec.normal) > 0.0;
@@ -85,7 +85,6 @@ pub struct Dielectric {
     // the refractive index of the enclosing media
     pub refraction_index: f64,
 }
-
 impl Dielectric {
     pub fn new(refraction_index: f64) -> Self {
         Dielectric { refraction_index }
@@ -98,7 +97,6 @@ impl Dielectric {
         return r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0);
     }
 }
-
 impl Material for Dielectric {
     fn scatter(
         &self,
@@ -130,7 +128,7 @@ impl Material for Dielectric {
             Vec3::refract(&unit_direction, &rec.normal, ri)
         };
 
-        *scattered = Ray::new(rec.p, direction);
+        *scattered = Ray::new(rec.p, direction, r_in.time());
 
         true
     }
