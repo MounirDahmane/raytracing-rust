@@ -5,6 +5,8 @@ mod vec3;
 mod camera;
 mod interval;
 
+mod aabb;
+
 mod hittable;
 mod hittable_list;
 mod sphere;

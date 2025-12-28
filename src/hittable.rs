@@ -2,6 +2,7 @@ use crate::material::Material;
 use crate::vec3::{Point3, Vec3};
 use crate::{Ray, interval::Interval};
 use std::rc::Rc;
+use crate::aabb;
 
 pub struct HitRecord {
     pub p: Point3,
