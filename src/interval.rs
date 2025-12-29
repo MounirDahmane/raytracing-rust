@@ -1,5 +1,6 @@
 use core::f64;
 
+#[derive(Copy, Clone)]
 pub struct Interval {
     pub min: f64,
     pub max: f64,
@@ -9,6 +10,16 @@ impl Interval {
     pub fn new(min: f64, max: f64) -> Self {
         Interval { min, max }
     }
+    pub fn new_(a: Interval, b: Interval) -> Self {
+
+        let min = if a.min <= b.min {a.min} else {b.min};
+        let max = if a.max >= b.max {a.max} else {b.max};
+        
+        Interval { min, max }
+    }
+}
+
+impl Interval {
     pub fn size(&self) -> f64 {
         self.max - self.min
     }
@@ -47,7 +58,6 @@ impl Interval {
     }
 
 }
-
 impl Default for Interval {
     fn default() -> Self {
         Interval::UNIVERSE

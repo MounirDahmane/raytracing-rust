@@ -1,3 +1,4 @@
+use crate::aabb::AABB;
 use crate::hittable::{HitRecord, Hittable};
 use crate::interval::Interval;
 use crate::ray::{self, Ray};
@@ -9,24 +10,42 @@ pub struct Sphere {
     center: Ray,
     radius: f64,
     mat: Rc<dyn Material>,
+    bbox: AABB,
 }
 
 impl Sphere {
 
     // Stationary Sphere
     pub fn new_static_sphere(static_center: Point3, radius: f64, mat: Rc<dyn Material>) -> Self {
+        
+        let rvec = Vec3::new(radius, radius, radius);
+        let bbox = AABB::new_from_points(static_center - rvec, static_center + rvec);
+        
         Sphere {
             center: Ray::new_no_time(static_center, Vec3::default()),
             radius: radius.max(0.0),
             mat: mat,
+            bbox,
         }
     }
+
     // Moving Sphere
     pub fn new_dynamic_sphere(center1: Point3, center2: Point3, radius: f64, mat: Rc<dyn Material>) -> Self {
+        
+        let center = Ray::new_no_time(center1, center2 - center1);
+        let radius = radius.max(0.0);
+        let mat = mat;
+
+        let rvec = Vec3::new(radius, radius, radius);
+        let box1 = AABB::new_from_points(center.at(0.0) - rvec, center.at(0.0) + rvec);
+        let box2 = AABB::new_from_points(center.at(1.0) - rvec, center.at(1.0) + rvec);
+        let bbox = AABB::new_(box1, box2);
+
         Sphere {
-            center: Ray::new_no_time(center1, center2 - center1),
-            radius: radius.max(0.0),
-            mat: mat,
+            center,
+            radius,
+            mat,
+            bbox,
         }
     }
       
@@ -64,5 +83,9 @@ impl Hittable for Sphere {
         rec.mat = Some(Rc::clone(&self.mat));
 
         return true;
+    }
+
+    fn bounding_box(&self) -> AABB {
+        return self.bbox;
     }
 }

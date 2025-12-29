@@ -1,58 +1,9 @@
-// class aabb {
-//   public:
-//     interval x, y, z;
-
-//     aabb() {} // The default AABB is empty, since intervals are empty by default.
-
-//     aabb(const interval& x, const interval& y, const interval& z)
-//       : x(x), y(y), z(z) {}
-
-//     aabb(const point3& a, const point3& b) {
-//         // Treat the two points a and b as extrema for the bounding box, so we don't require a
-//         // particular minimum/maximum coordinate order.
-
-//         x = (a[0] <= b[0]) ? interval(a[0], b[0]) : interval(b[0], a[0]);
-//         y = (a[1] <= b[1]) ? interval(a[1], b[1]) : interval(b[1], a[1]);
-//         z = (a[2] <= b[2]) ? interval(a[2], b[2]) : interval(b[2], a[2]);
-//     }
-
-//     const interval& axis_interval(int n) const {
-//         if (n == 1) return y;
-//         if (n == 2) return z;
-//         return x;
-//     }
-
-//     bool hit(const ray& r, interval ray_t) const {
-//         const point3& ray_orig = r.origin();
-//         const vec3&   ray_dir  = r.direction();
-
-//         for (int axis = 0; axis < 3; axis++) {
-//             const interval& ax = axis_interval(axis);
-//             const double adinv = 1.0 / ray_dir[axis];
-
-//             auto t0 = (ax.min - ray_orig[axis]) * adinv;
-//             auto t1 = (ax.max - ray_orig[axis]) * adinv;
-
-//             if (t0 < t1) {
-//                 if (t0 > ray_t.min) ray_t.min = t0;
-//                 if (t1 < ray_t.max) ray_t.max = t1;
-//             } else {
-//                 if (t1 > ray_t.min) ray_t.min = t1;
-//                 if (t0 < ray_t.max) ray_t.max = t0;
-//             }
-
-//             if (ray_t.max <= ray_t.min)
-//                 return false;
-//         }
-//         return true;
-//     }
-// };
-
 use crate::interval::Interval;
 use crate::vec3::Point3;
 use crate::hittable::{HitRecord, Hittable};
 use crate::ray::Ray;
 
+#[derive(Copy, Clone)]
 pub struct AABB{
     x: Interval,
     y: Interval,
@@ -81,15 +32,44 @@ impl AABB {
         
         Self { x, y, z }
     }
+
+    pub fn new_(box0: AABB, box1: AABB) -> Self {
+        Self { x: Interval::new_(box0.x, box1.x), 
+               y: Interval::new_(box0.y, box1.y), 
+               z: Interval::new_(box0.z, box1.z)
+        }
+    }
 }
 
 impl AABB {
-    
-    pub fn axis_interval(&self, n: i32) -> &Interval {
+    pub fn longest_axis(&self) -> i8 {
+        // Returns the index of the longest axis of the bounding box.
+        if self.x.size() > self.y.size() { 
+            if self.x.size() > self.z.size() {return 0;}
+            else {return  2;}
+        } 
+        else {
+            if self.y.size() > self.z.size(){return 1;}
+        else {return 2;}
+        }
+    }
+    pub fn axis_interval(&self, n: i8) -> &Interval {
         if n == 1 {return &self.y;}
         if n == 2 {return &self.z;}
         return &self.x;        
     }
+
+    pub const EMPTY: AABB = AABB {
+        x: Interval::EMPTY,
+        y: Interval::EMPTY,
+        z: Interval::EMPTY,
+    };
+
+    pub const UNIVERSE: AABB = AABB {
+        x: Interval::UNIVERSE,
+        y: Interval::UNIVERSE,
+        z: Interval::UNIVERSE,
+    };
 }
 
 impl Hittable for AABB {
@@ -122,4 +102,8 @@ impl Hittable for AABB {
         }
         return true;
     }
+
+    fn bounding_box(&self) -> AABB {
+        AABB::new_empty()
+    } 
 }
