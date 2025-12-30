@@ -1,11 +1,9 @@
+use std::rc::Rc;
+use crate::teture::*;
 use rand::random;
 
 use crate::{
-    color::{self, Color},
-    hittable::HitRecord,
-    ray::{self, Ray},
-    rtweekend,
-    vec3::Vec3,
+    color::{self, Color}, hittable::HitRecord, ray::{self, Ray}, rtweekend, teture::Texture, vec3::Vec3
 };
 
 pub struct noMaterial;
@@ -24,12 +22,15 @@ pub trait Material {
 impl Material for noMaterial {}
 
 pub struct lambertian {
-    albedo: color::Color,
+    tex: Rc<dyn Texture>,
 }
 impl lambertian {
     pub fn new(albedo: Color) -> Self {
-        lambertian { albedo }
+        lambertian { tex: Rc::new(SolidColor::new(&albedo)) }
     }
+    pub fn new_(tex: Rc<dyn Texture>) -> Self {
+        lambertian { tex }
+    }    
 }
 impl Material for lambertian {
     fn scatter(
@@ -47,7 +48,8 @@ impl Material for lambertian {
         }
 
         *scattered = Ray::new(rec.p, scatter_direction, r_in.time());
-        *attenuation = self.albedo;
+        *attenuation = self.tex.value(rec.u, rec.v, &rec.p);
+        
         true
     }
 }

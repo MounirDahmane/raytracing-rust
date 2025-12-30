@@ -29,7 +29,8 @@ pub struct Camera {
     u: Vec3, v: Vec3, w: Vec3,   // Camera frame basis vectors
 }
 impl Camera {
-    pub fn init(aspect_ratio: f64, img_width: u32, samples_per_pixel: u32, max_depth: u32, vfov: f64) -> Self {
+    pub fn init(aspect_ratio: f64, img_width: u32, samples_per_pixel: u32, max_depth: u32, vfov: f64,
+                lookfrom: Point3, lookat: Point3, vup: Vec3, defocus_angle: f64) -> Self {
         let mut camera = Camera {
             aspect_ratio,
             img_width,

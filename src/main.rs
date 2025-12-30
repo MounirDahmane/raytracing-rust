@@ -1,3 +1,6 @@
+// further improvements: adding multithreading, maybe with rayon
+// add supporting command-line arguments for the multiple scenes later
+
 mod color;
 mod ray;
 mod rtweekend;
@@ -7,6 +10,8 @@ mod interval;
 
 mod aabb;
 mod bvh;
+
+mod teture;
 
 mod hittable;
 mod hittable_list;
@@ -20,6 +25,7 @@ use crate::material::{Dielectric, Material, Metal, lambertian, noMaterial};
 use crate::ray::Ray;
 use crate::rtweekend::{random_double, random_double_range};
 use crate::sphere::Sphere;
+use crate::teture::CheckerTexture;
 use crate::vec3::{Point3, Vec3};
 use crate::hittable::Hittable;
 
@@ -27,13 +33,16 @@ use std::rc::Rc;
 use std::f64::consts::PI;
 use std::sync::PoisonError;
 
-fn main() {
 
+fn bouncing_spheres(){
     // World
     let mut world = HittableList::new();
 
-    let ground_material = Rc::new(lambertian::new(Color::new(0.5, 0.5, 0.5)));
-    world.add(Rc::new(Sphere::new_static_sphere(Point3::new(0.0, -1000.0, 0.0), 1000.0, ground_material)));
+    let checker = Rc::new(CheckerTexture::new_(0.32, &Color::new(0.2, 0.3, 0.1), &Color::new(0.9, 0.9, 0.9)));
+    world.add(Rc::new(Sphere::new_static_sphere(Point3::new(0.0, -1000.0, 0.0), 1000.0, Rc::new(lambertian::new_(checker)))));
+    
+    //let ground_material = Rc::new(lambertian::new(Color::new(0.5, 0.5, 0.5)));
+    //world.add(Rc::new(Sphere::new_static_sphere(Point3::new(0.0, -1000.0, 0.0), 1000.0, ground_material)));
     
     for a in -11..11 {
         for b in -11..11 {
@@ -82,8 +91,39 @@ fn main() {
     new_world.add(bvh_root);
 
 
-    let mut cam = camera::Camera::init(16.0 / 9.0, 400, 100, 50, 20.0);
-
+    let mut cam = camera::Camera::init(16.0 / 9.0, 400, 100, 
+                 50, 20.0, Point3::new(13.0,2.0,3.0), Point3::new(0.0,0.0,0.0),
+                 Vec3::new(0.0,1.0,0.0), 0.6);
     cam.render(&new_world);
+
+}
+
+fn checkered_spheres() {
+    
+    let mut world = HittableList::new();
+
+    let checker = Rc::new(CheckerTexture::new_(0.32, &Color::new(0.2, 0.3, 0.1), 
+                &Color::new(0.9, 0.9, 0.9)));
+
+    world.add(Rc::new(Sphere::new_static_sphere(Point3::new(0.0, -10.0, 0.0), 
+                10.0, Rc::new(lambertian::new_(checker.clone())))));
+
+    world.add(Rc::new(Sphere::new_static_sphere(Point3::new(0.0, 10.0, 0.0), 
+                10.0, Rc::new(lambertian::new_(checker.clone())))));
+
+    let mut cam = camera::Camera::init(16.0 / 9.0, 400, 100, 
+                50, 20.0, Point3::new(13.0,2.0,3.0), Point3::new(0.0,0.0,0.0),
+                Vec3::new(0.0,1.0,0.0), 0.0);
+
+    cam.render(&world);
+}
+fn main() {
+
+    let x = 2;
+    match x {
+    1 => bouncing_spheres(),
+    2 => checkered_spheres(),
+    _ => return,
+};
 
 }

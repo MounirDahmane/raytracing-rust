@@ -10,6 +10,8 @@ pub struct HitRecord {
     pub mat: Option<Rc<dyn Material>>,
 
     pub t: f64,
+    pub u: f64, 
+    pub v: f64, 
     pub front_face: bool,
 }
 impl HitRecord {
@@ -32,6 +34,8 @@ impl Default for HitRecord {
             normal: Vec3::default(),
             mat: None,
             t: 0.0,
+            u: 0.0,
+            v: 0.0,
             front_face: false,
         }
     }
