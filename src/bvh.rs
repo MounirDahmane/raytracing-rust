@@ -1,11 +1,11 @@
 use rand::random;
 
 use crate::aabb::AABB;
-use crate::hittable::{Hittable, HitRecord};
+use crate::hittable::{HitRecord, Hittable};
 use crate::hittable_list::{self, HittableList};
-use crate::{Rc, rtweekend};
-use crate::Ray;
 use crate::interval::Interval;
+use crate::Ray;
+use crate::{rtweekend, Rc};
 
 pub struct BvhNode {
     left: Rc<dyn Hittable>,
@@ -13,10 +13,8 @@ pub struct BvhNode {
     bbox: AABB,
 }
 
-impl BvhNode{
-
+impl BvhNode {
     pub fn new_from_list(list: &mut HittableList) -> Self {
-        
         let len = list.objects.len();
         if len == 0 {
             panic!("Cannot create BVH from empty list");
@@ -41,20 +39,16 @@ impl BvhNode{
         if object_span == 1 {
             left = objects[start].clone();
             right = objects[start].clone();
-        } 
-        else if object_span == 2 {
+        } else if object_span == 2 {
             left = objects[start].clone();
             right = objects[start + 1].clone();
-        } 
-        else {
+        } else {
             // sort ONLY the range [start..end)
             objects[start..end].sort_by(|a, b| {
                 a.bounding_box()
                     .axis_interval(axis)
                     .min
-                    .partial_cmp(
-                        &b.bounding_box().axis_interval(axis).min
-                    )
+                    .partial_cmp(&b.bounding_box().axis_interval(axis).min)
                     .unwrap()
             });
 
@@ -66,27 +60,25 @@ impl BvhNode{
 
         Self { left, right, bbox }
     }
-
 }
 
-impl BvhNode {
-    
-}
+impl BvhNode {}
 
 impl Hittable for BvhNode {
-
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
-        if !self.bbox.hit(r, ray_t, rec){
+        if !self.bbox.hit(r, ray_t, rec) {
             return false;
         }
 
         let hit_left = self.left.hit(r, ray_t, rec);
 
-        let arg = if hit_left {rec.t} else {ray_t.max};
+        let arg = if hit_left { rec.t } else { ray_t.max };
         let hit_right = self.right.hit(r, Interval::new(ray_t.min, arg), rec);
 
         return hit_left || hit_right;
     }
 
-    fn bounding_box(&self) -> AABB { return self.bbox; }
-} 
+    fn bounding_box(&self) -> AABB {
+        return self.bbox;
+    }
+}

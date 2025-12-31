@@ -1,9 +1,9 @@
+use crate::rtweekend;
 use std::fmt::Display;
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
 };
 use std::vec;
-use crate::rtweekend;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Vec3 {
@@ -88,13 +88,21 @@ impl Vec3 {
             v / v.length()
         }
     }
-    
+
     pub fn random() -> Self {
-        Self::new(rtweekend::random_double(), rtweekend::random_double(), rtweekend::random_double())
+        Self::new(
+            rtweekend::random_double(),
+            rtweekend::random_double(),
+            rtweekend::random_double(),
+        )
     }
-    
+
     pub fn random_range(min: f64, max: f64) -> Self {
-        Self::new(rtweekend::random_double_range(min, max), rtweekend::random_double_range(min, max), rtweekend::random_double_range(min, max))
+        Self::new(
+            rtweekend::random_double_range(min, max),
+            rtweekend::random_double_range(min, max),
+            rtweekend::random_double_range(min, max),
+        )
     }
 
     #[inline]
@@ -103,45 +111,45 @@ impl Vec3 {
         loop {
             let p = Vec3::random_range(-1.0, 1.0);
             let lensq = p.length_squared();
-            
+
             if 1e-160 < lensq && lensq <= 1.0 {
                 return p / lensq.sqrt();
             }
         }
     }
-    
+
     #[inline]
     pub fn random_in_unit_disk() -> Self {
         loop {
-            let p = Vec3::new(rtweekend::random_double_range(-1.0, 1.0),
-                                    rtweekend::random_double_range(-1.0, 1.0) , 0.0);
-            if p.length_squared() < 1.0{
+            let p = Vec3::new(
+                rtweekend::random_double_range(-1.0, 1.0),
+                rtweekend::random_double_range(-1.0, 1.0),
+                0.0,
+            );
+            if p.length_squared() < 1.0 {
                 return p;
             }
         }
     }
     #[inline]
-    pub fn random_on_hemisphere(normal: &Vec3) -> Self{
+    pub fn random_on_hemisphere(normal: &Vec3) -> Self {
         let on_unit_sphere = Vec3::random_unit_vector();
         if Vec3::dot(&on_unit_sphere, normal) > 0.0 {
-            return  on_unit_sphere;
-        }
-        else {
-            return  -on_unit_sphere;
+            return on_unit_sphere;
+        } else {
+            return -on_unit_sphere;
         }
     }
-    
+
     #[inline]
-    pub fn near_zero(&self) -> bool{
+    pub fn near_zero(&self) -> bool {
         // Return true if the vector is close to zero in all dimensions.
         let s = 1e-8;
-        return self.vector[0] < s &&
-            self.vector[1] < s &&
-            self.vector[2] < s ;
+        return self.vector[0] < s && self.vector[1] < s && self.vector[2] < s;
     }
-    
+
     #[inline]
-    pub fn reflect(v: &Vec3, n: &Vec3) -> Self{
+    pub fn reflect(v: &Vec3, n: &Vec3) -> Self {
         *v - 2.0 * v.dot(n) * *n
     }
 
@@ -155,7 +163,6 @@ impl Vec3 {
         return r_out_perp + r_out_parallel;
     }
 }
-    
 
 //operations
 

@@ -1,9 +1,10 @@
 use crate::aabb::AABB;
 use crate::hittable::{HitRecord, Hittable};
 use crate::interval::Interval;
+use crate::material::*;
 use crate::ray::{self, Ray};
 use crate::vec3::{Point3, Vec3};
-use crate::material::*;
+use std::f64::consts::PI;
 use std::rc::Rc;
 
 pub struct Sphere {
@@ -14,13 +15,11 @@ pub struct Sphere {
 }
 
 impl Sphere {
-
     // Stationary Sphere
     pub fn new_static_sphere(static_center: Point3, radius: f64, mat: Rc<dyn Material>) -> Self {
-        
         let rvec = Vec3::new(radius, radius, radius);
         let bbox = AABB::new_from_points(static_center - rvec, static_center + rvec);
-        
+
         Sphere {
             center: Ray::new_no_time(static_center, Vec3::default()),
             radius: radius.max(0.0),
@@ -30,8 +29,12 @@ impl Sphere {
     }
 
     // Moving Sphere
-    pub fn new_dynamic_sphere(center1: Point3, center2: Point3, radius: f64, mat: Rc<dyn Material>) -> Self {
-        
+    pub fn new_dynamic_sphere(
+        center1: Point3,
+        center2: Point3,
+        radius: f64,
+        mat: Rc<dyn Material>,
+    ) -> Self {
         let center = Ray::new_no_time(center1, center2 - center1);
         let radius = radius.max(0.0);
         let mat = mat;
@@ -48,13 +51,29 @@ impl Sphere {
             bbox,
         }
     }
-      
 }
+
+impl Sphere {
+    pub fn get_sphere_uv(p: &Point3, u: &mut f64, v: &mut f64) {
+        // p: a given point on the sphere of radius one, centered at the origin.
+        // u: returned value [0,1] of angle around the Y axis from X=-1.
+        // v: returned value [0,1] of angle from Y=-1 to Y=+1.
+        //     <1 0 0> yields <0.50 0.50>       <-1  0  0> yields <0.00 0.50>
+        //     <0 1 0> yields <0.50 1.00>       < 0 -1  0> yields <0.50 0.00>
+        //     <0 0 1> yields <0.25 0.50>       < 0  0 -1> yields <0.75 0.50>
+
+        let theta = (-p.y()).acos();
+        let phi = (-p.z()).atan2(p.x()) + PI;
+
+        *u = phi / (2.0 * PI);
+        *v = theta / PI;
+    }
+}
+
 impl Hittable for Sphere {
     //color map: n is a unit length => x, y, z E (-1.0, 1.0) ==> (0.0, 1.0) => (red, green, blue)
 
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
-        
         let current_center = self.center.at(r.time());
         let oc = current_center - r.origin();
         let a = r.direction().length_squared();
@@ -80,6 +99,9 @@ impl Hittable for Sphere {
         rec.p = r.at(rec.t);
         let outward_normal = (rec.p - current_center) / self.radius;
         rec.set_face_normal(r, &outward_normal);
+
+        Sphere::get_sphere_uv(&outward_normal, &mut rec.u, &mut rec.v);
+
         rec.mat = Some(Rc::clone(&self.mat));
 
         return true;

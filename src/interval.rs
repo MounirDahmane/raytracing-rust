@@ -11,10 +11,9 @@ impl Interval {
         Interval { min, max }
     }
     pub fn new_(a: Interval, b: Interval) -> Self {
+        let min = if a.min <= b.min { a.min } else { b.min };
+        let max = if a.max >= b.max { a.max } else { b.max };
 
-        let min = if a.min <= b.min {a.min} else {b.min};
-        let max = if a.max >= b.max {a.max} else {b.max};
-        
         Interval { min, max }
     }
 }
@@ -29,7 +28,7 @@ impl Interval {
     pub fn surrounds(&self, x: f64) -> bool {
         self.min < x && x < self.max
     }
-    pub fn clamp(&self, x: f64) -> f64{
+    pub fn clamp(&self, x: f64) -> f64 {
         if x < self.min {
             return self.min;
         }
@@ -50,13 +49,12 @@ impl Interval {
 
     pub fn expand(&self, delta: f64) -> Self {
         let padding = delta / 2.0;
-        
+
         Interval {
             min: self.min - padding,
             max: self.max + padding,
         }
     }
-
 }
 impl Default for Interval {
     fn default() -> Self {

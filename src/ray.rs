@@ -13,14 +13,14 @@ impl Ray {
         Ray {
             org: origin,
             dir: direction,
-            tm : time,
+            tm: time,
         }
     }
     pub fn new_no_time(origin: Point3, direction: Vec3) -> Self {
         Ray {
             org: origin,
             dir: direction,
-            tm : 0.0,
+            tm: 0.0,
         }
     }
 }

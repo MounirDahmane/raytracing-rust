@@ -1,8 +1,8 @@
+use crate::aabb::AABB;
 use crate::material::Material;
 use crate::vec3::{Point3, Vec3};
-use crate::{Ray, interval::Interval};
+use crate::{interval::Interval, Ray};
 use std::rc::Rc;
-use crate::aabb::AABB;
 
 pub struct HitRecord {
     pub p: Point3,
@@ -10,8 +10,8 @@ pub struct HitRecord {
     pub mat: Option<Rc<dyn Material>>,
 
     pub t: f64,
-    pub u: f64, 
-    pub v: f64, 
+    pub u: f64,
+    pub v: f64,
     pub front_face: bool,
 }
 impl HitRecord {
