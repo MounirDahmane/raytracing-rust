@@ -5,6 +5,7 @@ use crate::{
     interval::Interval,
     rtw_image::RtwImage,
     vec3::Point3,
+    perlin::Perlin,
 };
 
 pub trait Texture {
@@ -14,7 +15,6 @@ pub trait Texture {
 pub struct SolidColor {
     pub albedo: Color,
 }
-
 impl SolidColor {
     pub fn new(albedo: &Color) -> Self {
         Self { albedo: *albedo }
@@ -25,7 +25,6 @@ impl SolidColor {
         }
     }
 }
-
 impl Texture for SolidColor {
     fn value(&self, u: f64, v: f64, p: &Point3) -> Color {
         return self.albedo;
@@ -53,7 +52,6 @@ impl CheckerTexture {
         )
     }
 }
-
 impl Texture for CheckerTexture {
     fn value(&self, u: f64, v: f64, p: &Point3) -> Color {
         let x_integer = (self.inv_scale * p.x()).floor() as i32;
@@ -77,7 +75,6 @@ impl Texture for CheckerTexture {
 pub struct ImageTexture {
     image: RtwImage,
 }
-
 impl ImageTexture {
     pub fn new(filename: &str) -> Self {
         ImageTexture {
@@ -104,5 +101,20 @@ impl Texture for ImageTexture {
         let color_scale = 1.0 / 255.0;
 
         return color_scale * Color::new(pixel[0] as f64, pixel[1] as f64, pixel[2] as f64);
+    }
+}
+
+pub struct NoiseTexture {
+    noise: Perlin,
+    scale: f64, // to scale the frequency
+}
+impl NoiseTexture {
+    pub fn new(scale: f64) -> Self {
+        Self { noise: Perlin::new(), scale}
+    }
+}
+impl Texture for NoiseTexture{
+    fn value(&self, u: f64, v: f64, p: &Point3) -> Color {
+        Color::new(0.5, 0.5, 0.5) * (1.0 + (self.scale * p.z() + 10.0 * self.noise.turb(p, 7)).sin())
     }
 }
