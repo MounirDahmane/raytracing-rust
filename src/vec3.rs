@@ -117,9 +117,22 @@ impl Vec3 {
             }
         }
     }
+    
+    #[inline]
+    pub fn random_cosine_direction() -> Self{
+        let r1 = rtweekend::random_double();
+        let r2 = rtweekend::random_double();
+
+        let phi = 2.0 * rtweekend::PI * r1;
+        let x = (phi).cos() * (r2).sqrt();
+        let y = (phi).sin() * (r2).sqrt();
+        let z = (1.0 - r2).sqrt();
+
+        return Vec3::new(x, y, z);
+    }
 
     #[inline]
-    pub fn random_in_unit_disk() -> Self {
+    pub fn random_in_unit_disk() -> Self {  // A Las Vegas algorithm
         loop {
             let p = Vec3::new(
                 rtweekend::random_double_range(-1.0, 1.0),
@@ -131,6 +144,8 @@ impl Vec3 {
             }
         }
     }
+
+    
     #[inline]
     pub fn random_on_hemisphere(normal: &Vec3) -> Self {
         let on_unit_sphere = Vec3::random_unit_vector();

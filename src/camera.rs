@@ -1,15 +1,9 @@
 use crate::{
-    camera,
-    color::{self, write_color, Color},
-    hittable::{HitRecord, Hittable},
-    interval::Interval,
-    material::*,
-    ray::Ray,
-    rtweekend::{self, *},
-    vec3::{Point3, Vec3},
+    camera, color::{self, Color, write_color}, hittable::{HitRecord, Hittable}, interval::Interval, material::*, pdf::{CosinePdf, HittablePdf, MixtruePdf, Pdf}, ray::Ray, rtweekend::{self, *}, vec3::{Point3, Vec3}
 };
 
 use indicatif::ProgressBar;
+use crate::Rc;
 use std::io::{self, BufWriter, Write};
 pub struct Camera {
     pub aspect_ratio: f64,      // Ratio of image width over height
@@ -30,7 +24,9 @@ pub struct Camera {
     defocus_disk_v: Vec3, // Defocus disk vertical radius
 
     image_height: u32,
-    pixel_samples_scale: f64,
+    pixel_samples_scale: f64, // Color scale factor for a sum of pixel samples
+    sqrt_spp: i32,             // Square root of number of samples per pixel
+    recip_sqrt_spp: f64,       // 1 / sqrt_spp
     center: Point3,
     pixel_delta_u: Vec3,
     pixel_delta_v: Vec3,
@@ -71,6 +67,8 @@ impl Camera {
 
             image_height: 0,
             pixel_samples_scale: 0.0,
+            sqrt_spp: 0,
+            recip_sqrt_spp: 0.0,
             center: Point3::default(),
             pixel_delta_u: Vec3::default(),
             pixel_delta_v: Vec3::default(),
@@ -86,7 +84,7 @@ impl Camera {
 
 // public
 impl Camera {
-    pub fn render(&mut self, world: &dyn Hittable) {
+    pub fn render(&mut self, world: &dyn Hittable, lights: Rc<dyn Hittable>) {
         let stdout = io::stdout();
         let mut out = BufWriter::new(stdout.lock());
 
@@ -99,14 +97,22 @@ impl Camera {
         for j in 0..self.image_height {
             for i in 0..self.img_width {
                 let mut pixel_color = color::Color::new(0.0, 0.0, 0.0);
-                for _ in 0..self.samples_per_pixel {
-                    // For each pixel, take multiple stochastic samples (SSAA) and average their colors
-                    let r = self.get_ray(i, j);
-                    pixel_color += self.ray_color(&r, self.max_depth, world);
-                }
-                pixel_color *= self.pixel_samples_scale;
+                //for _ in 0..self.samples_per_pixel {
+                //    // For each pixel, take multiple stochastic samples (SSAA) and average their colors
+                //    let r = self.get_ray(i, j);
+                //    pixel_color += self.ray_color(&r, self.max_depth, world);
+                //}
+                //pixel_color *= self.pixel_samples_scale;
 
-                color::write_color(&mut out, &pixel_color).unwrap();
+                //color::write_color(&mut out, &pixel_color).unwrap();
+                for s_j in 0..self.sqrt_spp {
+                    for s_i in 0..self.sqrt_spp {
+                        let r = self.get_ray(i, j, s_i, s_j);
+                        pixel_color += self.ray_color(&r, self.max_depth, world, lights.clone());
+                    }
+                }
+                let pc = self.pixel_samples_scale * pixel_color;
+                color::write_color(&mut out, &pc).unwrap();
             }
             bar.inc(1);
         }
@@ -128,7 +134,11 @@ impl Camera {
             self.image_height = self.image_height;
         }
 
-        self.pixel_samples_scale = 1.0 / (self.samples_per_pixel as f64); // Color scale factor for a sum of pixel samples
+        //self.pixel_samples_scale = 1.0 / (self.samples_per_pixel as f64); // Color scale factor for a sum of pixel samples
+        
+        self.sqrt_spp = (self.samples_per_pixel as f64).sqrt() as i32;
+        self.pixel_samples_scale = 1.0 / ((self.sqrt_spp * self.sqrt_spp) as f64);
+        self.recip_sqrt_spp = 1.0 / (self.sqrt_spp as f64);
 
         // Camera
         self.center = self.lookfrom; // eye point
@@ -167,7 +177,7 @@ impl Camera {
         self.defocus_disk_u = self.u * defocus_radius;
         self.defocus_disk_v = self.v * defocus_radius;
     }
-    fn ray_color(&self, r: &Ray, depth: u32, world: &dyn Hittable) -> Color {
+    fn ray_color(&self, r: &Ray, depth: u32, world: &dyn Hittable, lights: Rc<dyn Hittable>) -> Color {
         // If we've exceeded the ray bounce limit, no more light is gathered.
         if depth == 0 {
             return Color::new(0.0, 0.0, 0.0);
@@ -177,22 +187,21 @@ impl Camera {
 
         // If the ray hits nothing, return the background color.
         if !world.hit(r, Interval::new(0.001, f64::INFINITY), &mut rec) {
-            return self.get_background_color(r);
+            //return self.get_background_color(r);
+            return  self.background;
         }
 
-        let mut scattered = Ray::default();
-        let mut attenuation = Color::default();
+        let mut srec = ScatterRecord::new();
 
-        // Get emission (or black if no material)
         let color_from_emission = if let Some(mat) = &rec.mat {
-            mat.emitted(rec.u, rec.v, &rec.p)
+            mat.emitted(r, &rec, rec.u, rec.v, &rec.p)
         } else {
             Color::new(0.0, 0.0, 0.0)
         };
-
+        
         // If there's no material, or scatter returns false, return emission.
         if let Some(mat) = &rec.mat {
-            if !mat.scatter(r, &rec, &mut attenuation, &mut scattered) {
+            if !mat.scatter(r, &rec, &mut srec) {
                 return color_from_emission;
             }
         } else {
@@ -200,8 +209,30 @@ impl Camera {
             return color_from_emission;
         }
 
-        // Recurse for scattered ray
-        let color_from_scatter = attenuation * self.ray_color(&scattered, depth - 1, world);
+        if srec.skip_pdf {
+            return srec.attenuation * self.ray_color(&srec.skip_pdf_ray, depth-1, world, lights.clone());
+        }
+
+        let light_ptr = Rc::new(HittablePdf::new(lights.clone(), &rec.p));
+        
+        let p = MixtruePdf::new(
+                light_ptr,
+                srec.pdf_ptr.as_ref().unwrap().clone(),
+            );
+
+        let scattered = Ray::new(rec.p, p.generate(), r.time());
+        let pdf_value = p.value(&scattered.direction());
+
+        let scattering_pdf = if let Some(mat) = &rec.mat {
+            mat.scattering_pdf(r, &rec, &scattered)
+        } 
+        else {
+             0.0
+        };
+
+        let sample_color = self.ray_color(&scattered, depth-1, world, lights.clone());
+
+        let color_from_scatter = (srec.attenuation * scattering_pdf * sample_color) / pdf_value;
 
         color_from_emission + color_from_scatter
     }  
@@ -216,7 +247,7 @@ impl Camera {
             self.background
         }
     }
-    fn get_ray(&self, i: u32, j: u32) -> Ray {
+    fn get_ray(&self, i: u32, j: u32, s_i: i32, s_j: i32) -> Ray {
         // Construct a camera ray originating from the defocus disk and directed at a randomly
         // sampled point around the pixel location i, j.
 
@@ -224,7 +255,9 @@ impl Camera {
         // This stochastic sampling reduces aliasing by averaging multiple rays per pixel
         // with slightly jittered positions instead of just shooting through the pixel center.
 
-        let offset = Camera::sample_square();
+        //let offset = Camera::sample_square();
+        let offset = Camera::sample_square_stratified(self, s_i, s_j);
+
         let pixel_sample = self.pixel00_loc
             + (((i as f64) + offset.x()) * self.pixel_delta_u)
             + (((j as f64) + offset.y()) * self.pixel_delta_v);
@@ -248,4 +281,13 @@ impl Camera {
         // Returns the vector to a random point in the [-.5,-.5]-[+.5,+.5] unit square.
         Vec3::new(random_double() - 0.5, random_double() - 0.5, 0.0)
     }
+    fn sample_square_stratified(&self, s_i: i32, s_j: i32) -> Vec3 {
+        // Returns the vector to a random point in the square sub-pixel specified by grid
+        // indices s_i and s_j, for an idealized unit square pixel [-.5,-.5] to [+.5,+.5].
+        let px = (((s_i as f64)+ random_double()) * self.recip_sqrt_spp) - 0.5;
+        let py = (((s_j as f64)+ random_double()) * self.recip_sqrt_spp) - 0.5;
+
+        return Vec3::new(px, py, 0.0);
+    }
+
 }

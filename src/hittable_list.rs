@@ -2,7 +2,10 @@ use crate::aabb::AABB;
 use crate::hittable::{HitRecord, Hittable};
 use crate::hittable_list;
 use crate::Rc;
+use crate::rtweekend::random_int_range;
 use crate::{interval::Interval, ray::Ray};
+use crate::vec3::*;
+
 pub struct HittableList {
     pub objects: Vec<Rc<dyn Hittable>>,
     pub bbox: AABB,
@@ -26,6 +29,7 @@ impl HittableList {
         self.objects.push(object);
         self.bbox = AABB::new_(self.bbox, object_bbox);
     }
+
 }
 
 impl Hittable for HittableList {
@@ -47,5 +51,23 @@ impl Hittable for HittableList {
 
     fn bounding_box(&self) -> AABB {
         return self.bbox;
+    }
+
+
+    fn pdf_value(&self, origin: &Point3, direction: &Vec3) -> f64 {
+        let weight = 1.0 / (self.objects.len() as f64);
+        let mut sum = 0.0;
+
+        for object in &self.objects {
+            sum += weight * object.pdf_value(origin, direction);
+        }
+        return sum;
+    }
+
+    fn random(&self, origin: &Point3) -> Vec3 {
+        let int_size = self.objects.len() as i32;
+
+        let index = random_int_range(0, int_size - 1) as usize;
+        self.objects[index].random(origin)
     }
 }

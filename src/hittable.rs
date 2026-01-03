@@ -45,6 +45,13 @@ impl Default for HitRecord {
 pub trait Hittable {
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool;
     fn bounding_box(&self) -> AABB;
+    fn pdf_value(&self, origin: &Point3, direction: &Vec3) -> f64 {
+        return 0.0;
+    }
+
+    fn random(&self, origin: &Point3) -> Vec3 {
+        return Vec3::new(1.0,0.0,0.0);
+    }
 }
 
 pub struct Translate {

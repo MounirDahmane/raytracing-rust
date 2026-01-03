@@ -1,5 +1,7 @@
 // further improvements: adding multithreading, maybe with rayon
 // add supporting command-line arguments for the multiple scenes later
+// optimization, put all files in one, remove the unnecessary
+// for the cornell box, revise the transition, the light in wall
 
 mod camera;
 mod color;
@@ -7,6 +9,9 @@ mod interval;
 mod ray;
 mod rtweekend;
 mod vec3;
+
+mod onb;
+mod pdf;
 
 mod aabb;
 mod bvh;
@@ -29,10 +34,10 @@ use crate::bvh::BvhNode;
 use crate::color::Color;
 use crate::hittable::{Hittable, RotateY, Translate};
 use crate::hittable_list::HittableList;
-use crate::material::{Dielectric, Material, Metal, DiffuseLight, lambertian};
+use crate::material::{Dielectric, DiffuseLight, Material, Metal, lambertian, noMaterial};
 use crate::quad::Quad;
 use crate::ray::Ray;
-use crate::rtweekend::random_double_range;
+use crate::rtweekend::{PI, random_double, random_double_range};
 use crate::sphere::Sphere;
 use crate::texture::{CheckerTexture, ImageTexture, NoiseTexture};
 use crate::vec3::{Point3, Vec3};
@@ -146,7 +151,7 @@ fn bouncing_spheres() {
         Vec3::new(0.0, 1.0, 0.0),
         0.6,
     );
-    cam.render(&new_world);
+    //cam.render(&new_world);
 }
 
 fn checkered_spheres() {
@@ -183,7 +188,7 @@ fn checkered_spheres() {
         0.0,
     );
 
-    cam.render(&world);
+    //cam.render(&world);
 }
 
 fn earth() {
@@ -212,7 +217,7 @@ fn earth() {
     let mut world = HittableList::new();
     world.add(globe);
 
-    cam.render(&world);
+    //cam.render(&world);
 }
 
 fn perlin_spheres() {
@@ -246,7 +251,7 @@ fn perlin_spheres() {
         0.0,
     );
 
-    cam.render(&world);
+    //cam.render(&world);
 }
 
 fn quads() {
@@ -310,7 +315,7 @@ fn quads() {
         0.0,
     );
 
-    cam.render(&world);
+    //cam.render(&world);
 }
 
 fn test_all_primitives() {
@@ -421,7 +426,7 @@ fn test_all_primitives() {
         0.0,
     );
 
-    cam.render(&world);
+    //cam.render(&world);
 }
 
 fn simple_light() {
@@ -454,7 +459,7 @@ fn simple_light() {
         Vec3::new(0.0, 1.0, 0.0),
         0.0,
     );
-    cam.render(&world);
+    //cam.render(&world);
 }
 
 fn cornell_box() {
@@ -472,6 +477,7 @@ fn cornell_box() {
     world.add(Rc::new(Quad::new(Point3::new(555.0, 555.0, 555.0), Vec3::new(-555.0,0.0,0.0), Vec3::new(0.0,0.0,-555.0), white.clone(), Primitive::Quad)));
     world.add(Rc::new(Quad::new(Point3::new(0.0,   0.0,   555.0), Vec3::new(555.0,0.0,0.0 ), Vec3::new(0.0,555.0,0.0 ), white.clone(), Primitive::Quad)));
 
+    let aluminum = Rc::new(Metal::new(Color::new(0.8, 0.85, 0.88), 0.0));
     
     let mut box1: Rc<dyn Hittable> = Rc::new(Quad::Box(
     &Point3::new(0.0, 0.0, 0.0),
@@ -485,22 +491,28 @@ fn cornell_box() {
     world.add(box1);
 
 
-    let mut box2: Rc<dyn Hittable> = Rc::new(Quad::Box(
-    &Point3::new(0.0, 0.0, 0.0),
-    &Point3::new(165.0, 165.0, 165.0),
-    white.clone(),
-    ));
-    
-    box2 = Rc::new(RotateY::new(box2, -18.0));
-    box2 = Rc::new(Translate::new(box2, Vec3::new(130.0, 0.0, 65.0)));
+    // Glass Sphere
+    let glass = Rc::new(Dielectric::new(1.5));
+    world.add(Rc::new(Sphere::new_static_sphere(Point3::new(190.0, 90.0, 190.0), 
+                90.0, glass)));
 
-    world.add(box2);
+    // Light Sources
+    let empty_material = Rc::new(noMaterial);
+    let mut lights = HittableList::new();
+    lights.add(
+        Rc::new(Quad::new(Point3::new(343.0, 554.0, 332.0), 
+        Vec3::new(-130.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -105.0), empty_material.clone(), Primitive::Quad)));
 
     
+    lights.add(
+        Rc::new(Sphere::new_static_sphere(Point3::new(190.0, 90.0, 190.0), 90.0, empty_material.clone())));
+
+    
+
     let mut cam = camera::Camera::init(
         1.0,
         600,
-        200,
+        1000,
         50,
         Color::new(0.0, 0.0, 0.0),
         false,
@@ -511,7 +523,7 @@ fn cornell_box() {
         0.0,
     );
 
-    cam.render(&world);
+    cam.render(&world, Rc::new(lights));
 }
 
 fn cornell_smoke() {
@@ -613,7 +625,7 @@ fn cornell_smoke() {
         0.0,                                 // defocus / aperture
     );
 
-    cam.render(&world);
+    //cam.render(&world);
 }
 
 
@@ -718,12 +730,12 @@ fn final_scene(image_width: u32, samples_per_pixel: u32, max_depth: u32) {
         0.0,
     );
 
-    cam.render(&world);
+    
+    //cam.render(&world);
 }
 
-
 fn main() {
-    let x = 11;
+    let x = 8;
 
     match x {
         1 => bouncing_spheres(),
@@ -736,7 +748,7 @@ fn main() {
         8 => cornell_box(),
         9 => cornell_smoke(),
         10 => final_scene(800, 10000, 40),
-        _ => final_scene(800,   300,  10),
+        11 => final_scene(800,   300,  10),
+        _ => print!(""),
     };
-
 }

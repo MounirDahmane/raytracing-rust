@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    Hittable, Material, Point3, Ray, Vec3, aabb::AABB, color::Color, hittable::HitRecord, hittable_list::{self, HittableList}, interval::Interval, texture::Texture
+    Hittable, Material, Point3, Ray, Vec3, aabb::AABB, color::Color, hittable::{self, HitRecord}, hittable_list::{self, HittableList}, interval::Interval, rtweekend::{INFINITY, random_double}, texture::Texture
 };
 
 /// 2D primitives that can be carved out in the (alpha, beta) plane.
@@ -25,6 +25,7 @@ pub struct Quad {
     normal: Vec3,
     d: f64,
     primitive: Primitive,
+    area: f64,
 }
 
 impl Quad {
@@ -37,7 +38,9 @@ impl Quad {
 
         // matches your previous w: n / dot(n,n)
         let w = n / Vec3::dot(&n, &n);
-
+        
+        let area = n.length();
+        
         Self {
             q,
             u,
@@ -48,6 +51,7 @@ impl Quad {
             normal,
             d,
             primitive,
+            area,
         }
     }
 
@@ -227,6 +231,26 @@ impl Hittable for Quad {
     fn bounding_box(&self) -> AABB {
         self.bbox
     }
+
+    fn pdf_value(&self, origin: &Point3, direction: &Vec3) -> f64 {
+        let mut rec = HitRecord::default();
+        
+        if !self.hit(&Ray::new_no_time(*origin, *direction), Interval::new(0.001, INFINITY), &mut rec) {
+            return 0.0;
+        }
+        let distance_squared = rec.t * rec.t * direction.length_squared();
+        let cosine = (Vec3::dot(direction, &rec.normal) / direction.length()).abs();
+
+        return distance_squared / (cosine * self.area);
+    }
+
+    fn random(&self, origin: &Point3) -> Vec3{
+        let p = self.q + (random_double() * self.u) + (random_double() * self.v);
+        
+        return p - *origin;
+    }
+
+
 }
 
 /// Utility: linear mapping
