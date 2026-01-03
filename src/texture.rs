@@ -3,9 +3,9 @@ use std::rc::Rc;
 use crate::{
     color::{self, Color},
     interval::Interval,
+    perlin::Perlin,
     rtw_image::RtwImage,
     vec3::Point3,
-    perlin::Perlin,
 };
 
 pub trait Texture {
@@ -110,11 +110,15 @@ pub struct NoiseTexture {
 }
 impl NoiseTexture {
     pub fn new(scale: f64) -> Self {
-        Self { noise: Perlin::new(), scale}
+        Self {
+            noise: Perlin::new(),
+            scale,
+        }
     }
 }
-impl Texture for NoiseTexture{
+impl Texture for NoiseTexture {
     fn value(&self, u: f64, v: f64, p: &Point3) -> Color {
-        Color::new(0.5, 0.5, 0.5) * (1.0 + (self.scale * p.z() + 10.0 * self.noise.turb(p, 7)).sin())
+        Color::new(0.5, 0.5, 0.5)
+            * (1.0 + (self.scale * p.z() + 10.0 * self.noise.turb(p, 7)).sin())
     }
 }

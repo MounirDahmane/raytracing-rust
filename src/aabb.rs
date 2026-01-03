@@ -1,13 +1,14 @@
 use crate::hittable::{HitRecord, Hittable};
 use crate::interval::Interval;
 use crate::ray::Ray;
-use crate::vec3::Point3;
+use crate::vec3::{Point3, Vec3};
+use std::ops::Add;
 
 #[derive(Copy, Clone)]
 pub struct AABB {
-    x: Interval,
-    y: Interval,
-    z: Interval,
+    pub x: Interval,
+    pub y: Interval,
+    pub z: Interval,
 }
 
 impl AABB {
@@ -21,27 +22,38 @@ impl AABB {
     }
 
     pub fn new(x: Interval, y: Interval, z: Interval) -> Self {
+        let mut x = x;
+        let mut y = y;
+        let mut z = z;
+
+        AABB::pad_to_minimums(&mut x, &mut y, &mut z);
+
         Self { x, y, z }
     }
 
     pub fn new_from_points(a: Point3, b: Point3) -> Self {
-        let x = if a[0] <= b[0] {
+        // Treat the two points a and b as extrema for the bounding box, so we don't require a
+        // particular minimum/maximum coordinate order.
+
+        let mut x = if a[0] <= b[0] {
             Interval::new(a[0], b[0])
         } else {
             Interval::new(b[0], a[0])
         };
 
-        let y = if a[1] <= b[1] {
+        let mut y = if a[1] <= b[1] {
             Interval::new(a[1], b[1])
         } else {
             Interval::new(b[1], a[1])
         };
 
-        let z = if a[2] <= b[2] {
+        let mut z = if a[2] <= b[2] {
             Interval::new(a[2], b[2])
         } else {
             Interval::new(b[2], a[2])
         };
+
+        AABB::pad_to_minimums(&mut x, &mut y, &mut z);
 
         Self { x, y, z }
     }
@@ -93,7 +105,45 @@ impl AABB {
         y: Interval::UNIVERSE,
         z: Interval::UNIVERSE,
     };
+
+    fn pad_to_minimums(x: &mut Interval, y: &mut Interval, z: &mut Interval) {
+        // Adjust the AABB so that no side is narrower than some delta, padding if necessary.
+
+        let delta = 0.0001;
+
+        if x.size() < delta {
+            *x = x.expand(delta);
+        }
+        if y.size() < delta {
+            *y = y.expand(delta);
+        }
+        if z.size() < delta {
+            *z = z.expand(delta);
+        }
+    }
 }
+
+impl Add<Vec3> for AABB {
+    type Output = AABB;
+
+    fn add(self, offset: Vec3) -> AABB {
+        AABB::new(
+            self.x + offset.x(),
+            self.y + offset.y(),
+            self.z + offset.z(),
+        )
+    }
+}
+
+impl Add<AABB> for Vec3 {
+    type Output = AABB;
+
+    fn add(self, bbox: AABB) -> AABB {
+        bbox + self
+    }
+}
+
+
 
 impl Hittable for AABB {
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {

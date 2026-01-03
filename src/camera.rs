@@ -12,10 +12,12 @@ use crate::{
 use indicatif::ProgressBar;
 use std::io::{self, BufWriter, Write};
 pub struct Camera {
-    pub aspect_ratio: f64,
-    pub img_width: u32,
+    pub aspect_ratio: f64,      // Ratio of image width over height
+    pub img_width: u32,         // Rendered image width in pixel count
     pub samples_per_pixel: u32, // Count of random samples for each pixel
     pub max_depth: u32,         // Maximum number of ray bounces into scene
+    pub background: Color,      // Scene background color
+    pub use_gradient_sky: bool,
     pub vfov: f64,              // Vertical view angle (field of view)
     pub lookfrom: Point3,       // Point camera is looking from
     pub lookat: Point3,         // Point camera is looking at
@@ -43,6 +45,8 @@ impl Camera {
         img_width: u32,
         samples_per_pixel: u32,
         max_depth: u32,
+        background: Color,
+        use_gradient_sky: bool,
         vfov: f64,
         lookfrom: Point3,
         lookat: Point3,
@@ -54,11 +58,13 @@ impl Camera {
             img_width,
             samples_per_pixel,
             max_depth,
+            background,
+            use_gradient_sky,
             vfov,
-            lookfrom: Point3::new(13.0, 2.0, 3.0),
-            lookat: Point3::new(0.0, 0.0, 0.0),
-            vup: Vec3::new(0.0, 1.0, 0.0),
-            defocus_angle: 0.6,
+            lookfrom: lookfrom,
+            lookat: lookat,
+            vup: vup,
+            defocus_angle: defocus_angle,
             focus_dist: 10.0,
             defocus_disk_u: Vec3::default(),
             defocus_disk_v: Vec3::default(),
@@ -96,7 +102,7 @@ impl Camera {
                 for _ in 0..self.samples_per_pixel {
                     // For each pixel, take multiple stochastic samples (SSAA) and average their colors
                     let r = self.get_ray(i, j);
-                    pixel_color += Camera::ray_color(&r, self.max_depth, world);
+                    pixel_color += self.ray_color(&r, self.max_depth, world);
                 }
                 pixel_color *= self.pixel_samples_scale;
 
@@ -161,34 +167,54 @@ impl Camera {
         self.defocus_disk_u = self.u * defocus_radius;
         self.defocus_disk_v = self.v * defocus_radius;
     }
-    fn ray_color(r: &Ray, depth: u32, world: &dyn Hittable) -> color::Color {
+    fn ray_color(&self, r: &Ray, depth: u32, world: &dyn Hittable) -> Color {
         // If we've exceeded the ray bounce limit, no more light is gathered.
-        if depth <= 0 {
+        if depth == 0 {
             return Color::new(0.0, 0.0, 0.0);
         }
 
         let mut rec = HitRecord::default();
 
-        if world.hit(r, Interval::new(0.001, INFINITY), &mut rec) {
-            let mut scattered = Ray::default();
-            let mut attenuation = Color::default();
-
-            if let Some(mat) = &rec.mat {
-                if mat.scatter(r, &rec, &mut attenuation, &mut scattered) {
-                    // continue ray
-                    return attenuation * Camera::ray_color(&scattered, depth - 1, world);
-                } else {
-                    // material absorbed the ray
-                    return Color::new(0.0, 0.0, 0.0);
-                }
-            }
+        // If the ray hits nothing, return the background color.
+        if !world.hit(r, Interval::new(0.001, f64::INFINITY), &mut rec) {
+            return self.get_background_color(r);
         }
 
-        let unit_direction = Vec3::unit_vector(r.direction());
-        let a: f64 = 0.5 * (unit_direction.y() + 1.0);
+        let mut scattered = Ray::default();
+        let mut attenuation = Color::default();
 
-        // blendedValue
-        (1.0 - a) * color::Color::new(1.0, 1.0, 1.0) + a * color::Color::new(0.5, 0.7, 1.0)
+        // Get emission (or black if no material)
+        let color_from_emission = if let Some(mat) = &rec.mat {
+            mat.emitted(rec.u, rec.v, &rec.p)
+        } else {
+            Color::new(0.0, 0.0, 0.0)
+        };
+
+        // If there's no material, or scatter returns false, return emission.
+        if let Some(mat) = &rec.mat {
+            if !mat.scatter(r, &rec, &mut attenuation, &mut scattered) {
+                return color_from_emission;
+            }
+        } else {
+            // No material attached — behave like C++ version and return emission.
+            return color_from_emission;
+        }
+
+        // Recurse for scattered ray
+        let color_from_scatter = attenuation * self.ray_color(&scattered, depth - 1, world);
+
+        color_from_emission + color_from_scatter
+    }  
+
+    fn get_background_color(&self, r: &Ray) -> Color {
+        if self.use_gradient_sky {
+            let unit_direction = Vec3::unit_vector(r.direction());
+            let t = 0.5 * (unit_direction.y() + 1.0);
+
+            (1.0 - t) * Color::new(1.0, 1.0, 1.0) + t * Color::new(0.5, 0.7, 1.0)
+        } else {
+            self.background
+        }
     }
     fn get_ray(&self, i: u32, j: u32) -> Ray {
         // Construct a camera ray originating from the defocus disk and directed at a randomly
