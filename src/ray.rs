@@ -8,6 +8,7 @@ pub struct Ray {
 }
 
 impl Ray {
+    /// Creates a new ray from origin and direction.
     pub fn new(origin: Point3, direction: Vec3) -> Self {
         Ray {
             org: origin,
@@ -25,18 +26,24 @@ impl Default for Ray {
     }
 }
 
-//getters
+// Getters
+
 impl Ray {
+    #[inline(always)]
     pub fn origin(&self) -> Point3 {
         self.org
     }
+
+    #[inline(always)]
     pub fn direction(&self) -> Vec3 {
         self.dir
     }
 }
 
-//utils
+// Utilities
+
 impl Ray {
+    #[inline]
     pub fn at(&self, t: f64) -> Point3 {
         self.org + t * self.dir // P(t) = origin + t * direction
     }
