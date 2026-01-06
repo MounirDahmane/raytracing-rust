@@ -17,13 +17,13 @@ use crate::ray::Ray;
 use crate::sphere::Sphere;
 use crate::vec3::Point3;
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 fn main() {
     let mut world = HittableList::new();
 
     // Large ground sphere
-    let ground_material = Rc::new(Lambertian::new(Color::new(0.5, 0.5, 0.5)));
+    let ground_material = Arc::new(Lambertian::new(Color::new(0.5, 0.5, 0.5)));
     world.add(Box::new(Sphere::new(
         Point3::new(0.0, -1000.0, 0.0),
         1000.0,
@@ -41,18 +41,18 @@ fn main() {
             );
 
             if (center - Point3::new(4.0, 0.2, 0.0)).length() > 0.9 {
-                let sphere_material: Rc<dyn Material> = if choose_mat < 0.8 {
+                let sphere_material: Arc<dyn Material> = if choose_mat < 0.8 {
                     // Diffuse material
-                    Rc::new(Lambertian::new(Color::random() * Color::random()))
+                    Arc::new(Lambertian::new(Color::random() * Color::random()))
                 } else if choose_mat < 0.95 {
                     // Metal material with fuzz
-                    Rc::new(Metal::new(
+                    Arc::new(Metal::new(
                         Color::random_range(0.5, 1.0),
                         rtweekend::random_double_range(0.0, 0.5),
                     ))
                 } else {
                     // Dielectric (glass)
-                    Rc::new(Dielectric::new(1.5))
+                    Arc::new(Dielectric::new(1.5))
                 };
                 world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
             }
@@ -63,26 +63,20 @@ fn main() {
     world.add(Box::new(Sphere::new(
         Point3::new(0.0, 1.0, 0.0),
         1.0,
-        Rc::new(Dielectric::new(1.5)),
+        Arc::new(Dielectric::new(1.5)),
     )));
     world.add(Box::new(Sphere::new(
         Point3::new(-4.0, 1.0, 0.0),
         1.0,
-        Rc::new(Lambertian::new(Color::new(0.4, 0.2, 0.1))),
+        Arc::new(Lambertian::new(Color::new(0.4, 0.2, 0.1))),
     )));
     world.add(Box::new(Sphere::new(
         Point3::new(4.0, 1.0, 0.0),
         1.0,
-        Rc::new(Metal::new(Color::new(0.7, 0.6, 0.5), 0.0)),
+        Arc::new(Metal::new(Color::new(0.7, 0.6, 0.5), 0.0)),
     )));
 
     // Initialize camera and render
-    let mut cam = camera::Camera::init(16.0 / 9.0, 1920,
-        1000, 50, 20.0);
+    let mut cam = camera::Camera::init(16.0 / 9.0, 1920, 1000, 50, 20.0);
     cam.render(&world);
 }
-
-
-// real    198m26.032s
-// user    198m9.218s
-// sys     0m6.954s

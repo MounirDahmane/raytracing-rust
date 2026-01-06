@@ -97,11 +97,7 @@ impl Vec3 {
     #[inline]
     pub fn unit_vector(v: Vec3) -> Vec3 {
         let len = v.length();
-        if len == 0.0 {
-            Vec3::default()
-        } else {
-            v / len
-        }
+        if len == 0.0 { Vec3::default() } else { v / len }
     }
 
     /// Generates a vector with random components in [0, 1).

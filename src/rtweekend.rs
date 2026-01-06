@@ -1,4 +1,4 @@
-use rand::{rng, Rng};
+use rand::{Rng, rng};
 
 // Infinity constant
 pub const INFINITY: f64 = f64::INFINITY;

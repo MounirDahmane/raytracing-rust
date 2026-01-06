@@ -4,7 +4,7 @@ use crate::{interval::Interval, ray::Ray};
 /// A list of hittable objects, representing a scene or group of objects.
 pub struct HittableList {
     /// Collection of objects implementing the Hittable trait.
-    pub objects: Vec<Box<dyn Hittable>>,
+    pub objects: Vec<Box<dyn Hittable + Sync>>,
 }
 
 impl HittableList {
@@ -16,7 +16,7 @@ impl HittableList {
     }
 
     /// Adds a single hittable object to the list.
-    pub fn new_list(&mut self, object: Box<dyn Hittable>) {
+    pub fn new_list(&mut self, object: Box<dyn Hittable + Sync>) {
         self.add(object)
     }
 
@@ -26,7 +26,7 @@ impl HittableList {
     }
 
     /// Adds a hittable object to the list.
-    pub fn add(&mut self, object: Box<dyn Hittable>) {
+    pub fn add(&mut self, object: Box<dyn Hittable + Sync>) {
         self.objects.push(object);
     }
 }

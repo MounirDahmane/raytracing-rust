@@ -9,6 +9,9 @@ use crate::{
 use indicatif::ProgressBar;
 use std::io::{self, BufWriter, Write};
 
+use rayon::prelude::*;
+use std::sync::Arc;
+
 pub struct Camera {
     pub aspect_ratio: f64,
     pub img_width: u32,
@@ -77,7 +80,7 @@ impl Camera {
 // Public interface
 impl Camera {
     /// Render the scene by tracing rays and writing colors to stdout in PPM format.
-    pub fn render(&mut self, world: &dyn Hittable) {
+    pub fn render(&mut self, world: &(dyn Hittable + Sync)) {
         let stdout = io::stdout();
         let mut out = BufWriter::new(stdout.lock());
 
@@ -86,21 +89,45 @@ impl Camera {
         writeln!(out, "255").unwrap();
 
         let bar = ProgressBar::new(self.image_height as u64);
+        let bar = Arc::new(bar);
 
-        for j in 0..self.image_height {
-            for i in 0..self.img_width {
-                let mut pixel_color = Color::new(0.0, 0.0, 0.0);
-                for _ in 0..self.samples_per_pixel {
-                    let r = self.get_ray(i, j);
-                    pixel_color += Camera::ray_color(&r, self.max_depth, world);
-                }
-                pixel_color *= self.pixel_samples_scale;
+        // Parallel iterate over rows. We produce Vec<Vec<Color>>: one Vec<Color> per row.
+        // Use a descending row order if you want top-to-bottom consistent with previous render.
+        let rows: Vec<Vec<Color>> = (0..self.image_height as usize)
+            .into_par_iter()
+            .map_init(
+                || Arc::clone(&bar),
+                |bar_clone, j_usize| {
+                    let j = j_usize as u32;
+                    // Each thread will render one row `j`.
+                    let mut row: Vec<Color> = Vec::with_capacity(self.img_width as usize);
 
+                    for i in 0..self.img_width {
+                        let mut pixel_color = Color::new(0.0, 0.0, 0.0);
+                        for _ in 0..self.samples_per_pixel {
+                            let r = self.get_ray(i, j);
+                            pixel_color += Camera::ray_color(&r, self.max_depth, world);
+                        }
+                        pixel_color *= self.pixel_samples_scale;
+                        row.push(pixel_color);
+                    }
+
+                    // update progress bar per-row (thread-safe)
+                    bar_clone.inc(1);
+                    row
+                },
+            )
+            .collect();
+
+        bar.finish();
+
+        // Write rows sequentially in the same order we rendered them.
+        for row in rows {
+            for pixel_color in row {
                 color::write_color(&mut out, &pixel_color).unwrap();
             }
-            bar.inc(1);
         }
-        bar.finish();
+
         out.flush().unwrap();
     }
 }

@@ -6,7 +6,7 @@ use crate::{
     vec3::Vec3,
 };
 
-pub trait Material {
+pub trait Material: Send + Sync {
     /// Scatter method returns false by default (no scattering).
     fn scatter(
         &self,

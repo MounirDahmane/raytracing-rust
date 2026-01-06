@@ -1,7 +1,7 @@
 use crate::material::Material;
 use crate::vec3::{Point3, Vec3};
-use crate::{interval::Interval, Ray};
-use std::rc::Rc;
+use crate::{Ray, interval::Interval};
+use std::sync::Arc;
 
 pub struct HitRecord {
     /// Point of intersection.
@@ -9,7 +9,7 @@ pub struct HitRecord {
     /// Surface normal at the intersection point.
     pub normal: Vec3,
     /// Reference to the material of the hit object.
-    pub mat: Option<Rc<dyn Material>>,
+    pub mat: Option<Arc<dyn Material + Send + Sync>>,
     /// Ray parameter `t` at intersection.
     pub t: f64,
     /// True if the ray hits the front face of the surface.
