@@ -5,20 +5,20 @@ use crate::material::*;
 use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
 use crate::rtweekend::PI;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Represents a sphere, which can be static or moving, with a material and bounding box.
 pub struct Sphere {
     center: Ray,           // Represents the center position and velocity (for moving spheres).
     radius: f64,           // Sphere radius, non-negative.
-    mat: Rc<dyn Material>, // Shared reference to the sphere's material.
+    mat: Arc<dyn Material + Send + Sync>, // Shared reference to the sphere's material.
     bbox: AABB,            // Axis-aligned bounding box for the sphere.
 }
 
 impl Sphere {
     /// Creates a new static sphere with fixed center and radius.
     #[inline(always)]
-    pub fn new_static_sphere(static_center: Point3, radius: f64, mat: Rc<dyn Material>) -> Self {
+    pub fn new_static_sphere(static_center: Point3, radius: f64, mat: Arc<dyn Material + Send + Sync>) -> Self {
         let rvec = Vec3::new(radius, radius, radius);
         let bbox = AABB::new_from_points(static_center - rvec, static_center + rvec);
 
@@ -36,7 +36,7 @@ impl Sphere {
         center1: Point3,
         center2: Point3,
         radius: f64,
-        mat: Rc<dyn Material>,
+        mat: Arc<dyn Material + Send + Sync>,
     ) -> Self {
         let center = Ray::new_no_time(center1, center2 - center1);
         let radius = radius.max(0.0);
@@ -107,7 +107,7 @@ impl Hittable for Sphere {
 
         Sphere::get_sphere_uv(&outward_normal, &mut rec.u, &mut rec.v);
 
-        rec.mat = Some(Rc::clone(&self.mat));
+        rec.mat = Some(Arc::clone(&self.mat));
 
         true
     }

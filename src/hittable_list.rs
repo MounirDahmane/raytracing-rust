@@ -1,10 +1,12 @@
+use std::sync::Arc;
+use rayon::prelude::*;
+
 use crate::aabb::AABB;
 use crate::hittable::{HitRecord, Hittable};
-use crate::Rc;
 use crate::{interval::Interval, ray::Ray};
 
 pub struct HittableList {
-    pub objects: Vec<Rc<dyn Hittable>>,
+    pub objects: Vec<Arc<dyn Hittable + Send + Sync>>,
     pub bbox: AABB,
 }
 
@@ -16,36 +18,38 @@ impl HittableList {
         }
     }
 
-    pub fn new_list(&mut self, object: Rc<dyn Hittable>) {
-        self.add(object)
+    pub fn add(&mut self, object: Arc<dyn Hittable + Send + Sync>) {
+        let object_bbox = object.bounding_box();
+        self.objects.push(object);
+        self.bbox = AABB::new_(self.bbox, object_bbox);
     }
 
     pub fn clear(&mut self) {
         self.objects.clear();
     }
-
-    pub fn add(&mut self, object: Rc<dyn Hittable>) {
-        let object_bbox = object.bounding_box();
-        self.objects.push(object);
-        self.bbox = AABB::new_(self.bbox, object_bbox);
-    }
 }
 
 impl Hittable for HittableList {
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
-        let mut temp_rec = HitRecord::default();
-        let mut hit_anything = false;
-        let mut closest_so_far = ray_t.max;
+        // Parallel iteration over objects with Rayon
+        let hits = self.objects.par_iter()
+            .filter_map(|object| {
+                let mut temp_rec = HitRecord::default();
+                if object.hit(r, ray_t, &mut temp_rec) {
+                    Some(temp_rec)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
 
-        for object in &self.objects {
-            if object.hit(r, Interval::new(ray_t.min, closest_so_far), &mut temp_rec) {
-                hit_anything = true;
-                closest_so_far = temp_rec.t;
-                std::mem::swap(rec, &mut temp_rec);
-            }
+        // Find closest hit among hits collected in parallel
+        if let Some(closest_hit) = hits.into_iter().min_by(|a, b| a.t.partial_cmp(&b.t).unwrap()) {
+            *rec = closest_hit;
+            true
+        } else {
+            false
         }
-
-        hit_anything
     }
 
     fn bounding_box(&self) -> AABB {

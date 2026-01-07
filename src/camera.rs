@@ -8,6 +8,7 @@ use crate::{
 };
 
 use indicatif::ProgressBar;
+use rayon::prelude::*;
 use std::io::{self, BufWriter, Write};
 
 pub struct Camera {
@@ -83,29 +84,62 @@ impl Camera {
         camera
     }
 
-    pub fn render(&mut self, world: &dyn Hittable) {
+    
+    pub fn render(&mut self, world: &(dyn Hittable + Sync)) {
         let stdout = io::stdout();
         let mut out = BufWriter::new(stdout.lock());
 
-        writeln!(out, "P3").unwrap();
-        writeln!(out, "{} {}", self.img_width, self.image_height).unwrap();
-        writeln!(out, "255").unwrap();
+        // PPM header
+        let header = format!("P3\n{} {}\n255\n", self.img_width, self.image_height);
+        out.write_all(header.as_bytes()).unwrap();
 
+        // Progress bar (shared, thread-safe)
         let bar = ProgressBar::new(self.image_height as u64);
 
-        for j in 0..self.image_height {
-            for i in 0..self.img_width {
-                let mut pixel_color = Color::new(0.0, 0.0, 0.0);
-                for _ in 0..self.samples_per_pixel {
-                    let r = self.get_ray(i, j);
-                    pixel_color += self.ray_color(&r, self.max_depth, world);
-                }
-                pixel_color *= self.pixel_samples_scale;
+        // Compute each scanline in parallel. We produce (row_index, bytes) pairs,
+        // then sort by row_index and write rows in order to preserve image ordering.
+        let width = self.img_width;
+        let height = self.image_height;
+        let samples_per_pixel = self.samples_per_pixel;
+        let max_depth = self.max_depth;
+        let pixel_scale = self.pixel_samples_scale;
 
-                color::write_color(&mut out, &pixel_color).unwrap();
-            }
-            bar.inc(1);
+        // Capture `self` by immutable reference for thread-safe read-only access.
+        // (Camera's fields are plain Copy/Send types.)
+        let camera_ref = &*self;
+
+        let mut rows: Vec<(u32, Vec<u8>)> = (0..height)
+            .into_par_iter()
+            .map(|j| {
+                // Build this scanline's bytes into a buffer
+                let mut buf = Vec::with_capacity((width as usize) * 16);
+
+                // For each pixel in the scanline
+                for i in 0..width {
+                    let mut pixel_color = Color::new(0.0, 0.0, 0.0);
+                    for _s in 0..samples_per_pixel {
+                        let r = camera_ref.get_ray(i, j);
+                        pixel_color += camera_ref.ray_color(&r, max_depth, world);
+                    }
+                    pixel_color *= pixel_scale;
+
+                    // Reuse existing write_color (writes ASCII bytes into our Vec<u8>)
+                    color::write_color(&mut buf, &pixel_color).unwrap();
+                }
+
+                bar.inc(1); // update progress bar from worker thread
+                (j, buf)
+            })
+            .collect();
+
+        // Ensure scanlines in correct order (j ascending)
+        rows.sort_by_key(|(j, _)| *j);
+
+        // Write scanlines to stdout in order
+        for (_j, row) in rows {
+            out.write_all(&row).unwrap();
         }
+
         bar.finish();
         out.flush().unwrap();
     }

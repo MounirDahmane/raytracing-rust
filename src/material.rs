@@ -1,5 +1,5 @@
+use std::sync::Arc;
 use crate::{texture::*, vec3::Point3};
-use std::rc::Rc;
 
 use crate::{
     color::{self, Color},
@@ -12,7 +12,7 @@ use crate::{
 
 pub struct NoMaterial;
 
-pub trait Material {
+pub trait Material: Send + Sync {
     /// Defines how rays scatter on the material. Default: no scatter.
     fn scatter(
         &self,
@@ -33,19 +33,19 @@ pub trait Material {
 impl Material for NoMaterial {}
 
 pub struct Lambertian {
-    tex: Rc<dyn Texture>,
+    tex: Arc<dyn Texture + Send + Sync>,
 }
 
 impl Lambertian {
     /// Create Lambertian with solid color albedo.
     pub fn new(albedo: Color) -> Self {
         Lambertian {
-            tex: Rc::new(SolidColor::new(&albedo)),
+            tex: Arc::new(SolidColor::new(&albedo)),
         }
     }
 
     /// Create Lambertian with arbitrary texture.
-    pub fn new_(tex: Rc<dyn Texture>) -> Self {
+    pub fn new_(tex: Arc<dyn Texture + Send + Sync>) -> Self {
         Lambertian { tex }
     }
 }
@@ -165,17 +165,17 @@ impl Material for Dielectric {
 }
 
 pub struct DiffuseLight {
-    tex: Rc<dyn Texture>,
+    tex: Arc<dyn Texture + Send + Sync>,
 }
 
 impl DiffuseLight {
-    pub fn new(tex: Rc<dyn Texture>) -> Self {
+    pub fn new(tex: Arc<dyn Texture + Send + Sync>) -> Self {
         Self { tex }
     }
 
     pub fn new_(emit: &Color) -> Self {
         Self {
-            tex: Rc::new(SolidColor::new(emit)),
+            tex: Arc::new(SolidColor::new(emit)),
         }
     }
 }
@@ -188,17 +188,17 @@ impl Material for DiffuseLight {
 }
 
 pub struct Isotropic {
-    tex: Rc<dyn Texture>,
+    tex: Arc<dyn Texture + Send + Sync>,
 }
 
 impl Isotropic {
     pub fn new(albedo: &Color) -> Self {
         Self {
-            tex: Rc::new(SolidColor::new(albedo)),
+            tex: Arc::new(SolidColor::new(albedo)),
         }
     }
 
-    pub fn new_(tex: Rc<dyn Texture>) -> Self {
+    pub fn new_(tex: Arc<dyn Texture + Send + Sync>) -> Self {
         Self { tex }
     }
 }

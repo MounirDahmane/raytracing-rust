@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::{
     Hittable, Material, Point3, Ray, Vec3, aabb::AABB, color::Color, hittable::HitRecord, hittable_list::HittableList, interval::Interval, texture::Texture
@@ -11,7 +11,7 @@ pub enum Primitive {
     Triangle,                           // triangle: a>=0, b>=0, a+b <= 1
     Ellipse { rx: f64, ry: f64 },       // ellipse with radii rx, ry
     Annulus { inner: f64, outer: f64 }, // ring: inner..outer
-    TextureMask(Rc<dyn Texture>),       // mask based on texture value(u,v,p)
+    TextureMask(Arc<dyn Texture + Send + Sync>),       // mask based on texture value(u,v,p)
     Mandelbrot { iterations: usize },   // mandelbrot membership (mapped from [0,1]^2)
 }
 
@@ -20,7 +20,7 @@ pub struct Quad {
     u: Vec3,
     v: Vec3,
     w: Vec3,
-    mat: Rc<dyn Material>,
+    mat: Arc<dyn Material + Send + Sync>,
     bbox: AABB,
     normal: Vec3,
     d: f64,
@@ -28,7 +28,7 @@ pub struct Quad {
 }
 
 impl Quad {
-    pub fn new(q: Point3, u: Vec3, v: Vec3, mat: Rc<dyn Material>, primitive: Primitive) -> Self {
+    pub fn new(q: Point3, u: Vec3, v: Vec3, mat: Arc<dyn Material + Send + Sync>, primitive: Primitive) -> Self {
         let n = Vec3::cross(&u, &v);
         let bbox = Quad::set_bounding_box(&q, &u, &v);
 
@@ -161,7 +161,7 @@ impl Quad {
     }
 
     /// Creates a box shape from two points and material, returning the six quads as a HittableList.
-    pub fn box_shape(a: &Point3, b: &Point3, mat: Rc<dyn Material>) -> HittableList {
+    pub fn box_shape(a: &Point3, b: &Point3, mat: Arc<dyn Material + Send + Sync>) -> HittableList {
         let mut sides = HittableList::new();
 
         // Compute min and max corners for the box
@@ -172,12 +172,12 @@ impl Quad {
         let dy = Vec3::new(0.0, max.y() - min.y(), 0.0);
         let dz = Vec3::new(0.0, 0.0, max.z() - min.z());
 
-        sides.add(Rc::new(Quad::new(Point3::new(min.x(), min.y(), max.z()),  dx,  dy, mat.clone(), Primitive::Quad)));  // front
-        sides.add(Rc::new(Quad::new(Point3::new(max.x(), min.y(), max.z()), -dz,  dy, mat.clone(), Primitive::Quad)));  // right
-        sides.add(Rc::new(Quad::new(Point3::new(max.x(), min.y(), min.z()), -dx,  dy, mat.clone(), Primitive::Quad)));  // back
-        sides.add(Rc::new(Quad::new(Point3::new(min.x(), min.y(), min.z()),  dz,  dy, mat.clone(), Primitive::Quad)));  // left
-        sides.add(Rc::new(Quad::new(Point3::new(min.x(), max.y(), max.z()),  dx, -dz, mat.clone(), Primitive::Quad)));  // top
-        sides.add(Rc::new(Quad::new(Point3::new(min.x(), min.y(), min.z()),  dx,  dz, mat.clone(), Primitive::Quad)));  // bottom
+        sides.add(Arc::new(Quad::new(Point3::new(min.x(), min.y(), max.z()),  dx,  dy, mat.clone(), Primitive::Quad)));  // front
+        sides.add(Arc::new(Quad::new(Point3::new(max.x(), min.y(), max.z()), -dz,  dy, mat.clone(), Primitive::Quad)));  // right
+        sides.add(Arc::new(Quad::new(Point3::new(max.x(), min.y(), min.z()), -dx,  dy, mat.clone(), Primitive::Quad)));  // back
+        sides.add(Arc::new(Quad::new(Point3::new(min.x(), min.y(), min.z()),  dz,  dy, mat.clone(), Primitive::Quad)));  // left
+        sides.add(Arc::new(Quad::new(Point3::new(min.x(), max.y(), max.z()),  dx, -dz, mat.clone(), Primitive::Quad)));  // top
+        sides.add(Arc::new(Quad::new(Point3::new(min.x(), min.y(), min.z()),  dx,  dz, mat.clone(), Primitive::Quad)));  // bottom
 
         sides
     }
@@ -216,7 +216,7 @@ impl Hittable for Quad {
         // Set hit record info
         rec.t = t;
         rec.p = intersection;
-        rec.mat = Some(Rc::clone(&self.mat));
+        rec.mat = Some(Arc::clone(&self.mat));
         rec.set_face_normal(r, &self.normal);
 
         true

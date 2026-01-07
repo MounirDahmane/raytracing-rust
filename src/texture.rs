@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::{
     color::Color,
@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Trait for texture types that can provide a color value at given texture coordinates and position.
-pub trait Texture {
+pub trait Texture: Send + Sync {
     /// Returns the color value of the texture at coordinates `(u, v)` and point `p`.
     fn value(&self, u: f64, v: f64, p: &Point3) -> Color;
 }
@@ -46,14 +46,14 @@ impl Texture for SolidColor {
 /// A checkerboard texture alternating between two sub-textures.
 pub struct CheckerTexture {
     inv_scale: f64,
-    even: Rc<dyn Texture>,
-    odd: Rc<dyn Texture>,
+    even: Arc<dyn Texture>,
+    odd: Arc<dyn Texture>,
 }
 
 impl CheckerTexture {
     /// Creates a new `CheckerTexture` from scale and two boxed textures.
     #[inline(always)]
-    pub fn new(scale: f64, even: Rc<dyn Texture>, odd: Rc<dyn Texture>) -> Self {
+    pub fn new(scale: f64, even: Arc<dyn Texture>, odd: Arc<dyn Texture>) -> Self {
         Self {
             inv_scale: 1.0 / scale,
             even,
@@ -66,8 +66,8 @@ impl CheckerTexture {
     pub fn new_(scale: f64, c1: &Color, c2: &Color) -> Self {
         Self::new(
             scale,
-            Rc::new(SolidColor::new(c1)),
-            Rc::new(SolidColor::new(c2)),
+            Arc::new(SolidColor::new(c1)),
+            Arc::new(SolidColor::new(c2)),
         )
     }
 }

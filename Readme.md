@@ -16,3 +16,9 @@ If you use or reference this work, please cite:
 *Peter Shirley, Trevor David Black, Steve Hollasch*  
 Version: **v4.0.2** (2025-04-25)  
 <https://raytracing.github.io/books/RayTracingInOneWeekend.html>
+
+
+without rayon:
+real    825m47.754s
+user    825m33.192s
+sys     0m7.464s
