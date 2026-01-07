@@ -1,19 +1,19 @@
 use crate::{texture::*, vec3::Point3};
-use rand::random;
 use std::rc::Rc;
 
 use crate::{
     color::{self, Color},
     hittable::HitRecord,
-    ray::{self, Ray},
+    ray::Ray,
     rtweekend,
     texture::Texture,
     vec3::Vec3,
 };
 
-pub struct noMaterial;
+pub struct NoMaterial;
 
 pub trait Material {
+    /// Defines how rays scatter on the material. Default: no scatter.
     fn scatter(
         &self,
         r_in: &Ray,
@@ -23,27 +23,35 @@ pub trait Material {
     ) -> bool {
         false
     }
-    fn emitted(&self, u: f64, v: f64, p: &Point3) -> Color{
-        return Color::default();
+
+    /// Emitted light by the material (default black/no emission).
+    fn emitted(&self, _u: f64, _v: f64, _p: &Point3) -> Color {
+        Color::default()
     }
-
 }
-impl Material for noMaterial {}
 
-pub struct lambertian {
+impl Material for NoMaterial {}
+
+pub struct Lambertian {
     tex: Rc<dyn Texture>,
 }
-impl lambertian {
+
+impl Lambertian {
+    /// Create Lambertian with solid color albedo.
     pub fn new(albedo: Color) -> Self {
-        lambertian {
+        Lambertian {
             tex: Rc::new(SolidColor::new(&albedo)),
         }
     }
+
+    /// Create Lambertian with arbitrary texture.
     pub fn new_(tex: Rc<dyn Texture>) -> Self {
-        lambertian { tex }
+        Lambertian { tex }
     }
 }
-impl Material for lambertian {
+
+impl Material for Lambertian {
+    /// Diffuse scatter: random unit vector around normal.
     fn scatter(
         &self,
         r_in: &Ray,
@@ -53,7 +61,7 @@ impl Material for lambertian {
     ) -> bool {
         let mut scatter_direction = rec.normal + Vec3::random_unit_vector();
 
-        // Catch degenerate scatter direction
+        // Catch near-zero scatter direction
         if scatter_direction.near_zero() {
             scatter_direction = rec.normal;
         }
@@ -69,13 +77,17 @@ pub struct Metal {
     albedo: color::Color,
     fuzz: f64,
 }
+
 impl Metal {
+    /// Create metal with color and fuzziness capped at 1.0.
     pub fn new(albedo: Color, fuzz: f64) -> Self {
         let fuzz = fuzz.min(1.0);
         Metal { albedo, fuzz }
     }
 }
+
 impl Material for Metal {
+    /// Scatter reflects the incoming ray plus fuzz noise.
     fn scatter(
         &self,
         r_in: &Ray,
@@ -83,34 +95,39 @@ impl Material for Metal {
         attenuation: &mut Color,
         scattered: &mut Ray,
     ) -> bool {
-        let mut reflected = Vec3::reflect(&r_in.direction(), &rec.normal);
-        reflected = Vec3::unit_vector(reflected) + (self.fuzz * Vec3::random_unit_vector());
+        let reflected = Vec3::reflect(&r_in.direction(), &rec.normal);
+        let scattered_dir = Vec3::unit_vector(reflected) + (self.fuzz * Vec3::random_unit_vector());
 
-        *scattered = Ray::new(rec.p, reflected, r_in.time());
+        *scattered = Ray::new(rec.p, scattered_dir, r_in.time());
         *attenuation = self.albedo;
 
-        return scattered.direction().dot(&rec.normal) > 0.0;
+        scattered.direction().dot(&rec.normal) > 0.0
     }
 }
 
 pub struct Dielectric {
-    // Refractive index in vacuum or air, or the ratio of the material's refractive index over
-    // the refractive index of the enclosing media
+    /// Refractive index of the material
     pub refraction_index: f64,
 }
+
 impl Dielectric {
     pub fn new(refraction_index: f64) -> Self {
         Dielectric { refraction_index }
     }
 
+    /// Schlick's approximation for reflectance based on angle
     fn reflectance(cosine: f64, refraction_index: f64) -> f64 {
-        let mut r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
-        r0 *= r0;
+        let r0 = {
+            let r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
+            r0 * r0
+        };
 
-        return r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0);
+        r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0)
     }
 }
+
 impl Material for Dielectric {
+    /// Scatter ray by reflection or refraction depending on Fresnel effect and total internal reflection.
     fn scatter(
         &self,
         r_in: &Ray,
@@ -119,7 +136,8 @@ impl Material for Dielectric {
         scattered: &mut Ray,
     ) -> bool {
         *attenuation = Color::new(1.0, 1.0, 1.0);
-        let ri: f64 = if rec.front_face {
+
+        let ri = if rec.front_face {
             1.0 / self.refraction_index
         } else {
             self.refraction_index
@@ -132,7 +150,6 @@ impl Material for Dielectric {
 
         let cannot_refract = ri * sin_theta > 1.0;
 
-        //  Schlick Approximation
         let direction = if cannot_refract
             || Dielectric::reflectance(cos_theta, ri) > rtweekend::random_double()
         {
@@ -147,42 +164,56 @@ impl Material for Dielectric {
     }
 }
 
-pub struct DiffuseLight{
+pub struct DiffuseLight {
     tex: Rc<dyn Texture>,
 }
+
 impl DiffuseLight {
-   
     pub fn new(tex: Rc<dyn Texture>) -> Self {
         Self { tex }
     }
+
     pub fn new_(emit: &Color) -> Self {
-        Self { tex: Rc::new(SolidColor::new(emit)) }
+        Self {
+            tex: Rc::new(SolidColor::new(emit)),
+        }
     }
 }
+
 impl Material for DiffuseLight {
-    fn emitted(&self, u: f64, v: f64, p: &Point3) -> Color{
-        return self.tex.value(u, v, p);
+    /// Emitted light from the surface (no scattering).
+    fn emitted(&self, u: f64, v: f64, p: &Point3) -> Color {
+        self.tex.value(u, v, p)
     }
 }
 
 pub struct Isotropic {
     tex: Rc<dyn Texture>,
 }
+
 impl Isotropic {
-    
     pub fn new(albedo: &Color) -> Self {
-        Self { tex: Rc::new(SolidColor::new(albedo)) }
+        Self {
+            tex: Rc::new(SolidColor::new(albedo)),
+        }
     }
+
     pub fn new_(tex: Rc<dyn Texture>) -> Self {
         Self { tex }
     }
 }
 
 impl Material for Isotropic {
-    fn scatter(&self, r_in: &Ray, rec: &HitRecord, attenuation: &mut Color, scattered: &mut Ray) -> bool {
-
+    /// Scatter ray in a random direction (for volumes).
+    fn scatter(
+        &self,
+        r_in: &Ray,
+        rec: &HitRecord,
+        attenuation: &mut Color,
+        scattered: &mut Ray,
+    ) -> bool {
         *scattered = Ray::new(rec.p, Vec3::random_unit_vector(), r_in.time());
         *attenuation = self.tex.value(rec.u, rec.v, &rec.p);
-        return true;
+        true
     }
 }

@@ -7,10 +7,12 @@ pub type Color = Vec3;
 #[inline]
 pub fn linear_to_gamma(linear_component: f64) -> f64 {
     if linear_component > 0.0 {
-        return linear_component.sqrt();
+        linear_component.sqrt()
+    } else {
+        0.0
     }
-    return 0.0;
 }
+
 pub fn write_color<W: Write>(out: &mut W, pixel_color: &Color) -> std::io::Result<()> {
     let mut r = pixel_color.x();
     let mut g = pixel_color.y();
@@ -21,8 +23,7 @@ pub fn write_color<W: Write>(out: &mut W, pixel_color: &Color) -> std::io::Resul
     b = linear_to_gamma(b);
 
     // Translate the [0,1] component values to the byte range [0,255].
-
-    let intensity = Interval::new(0.000, 0.999);
+    let intensity = Interval::new(0.0, 0.999);
 
     let rbyte: u8 = (255.999 * intensity.clamp(r)) as u8;
     let gbyte: u8 = (255.999 * intensity.clamp(g)) as u8;

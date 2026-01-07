@@ -1,29 +1,41 @@
-use crate::rtweekend;
 use std::fmt::Display;
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
 };
-use std::vec;
 
+use crate::rtweekend;
+
+/// A 3D vector with three `f64` components, stored in an array.
+/// Used for points, directions, and colors in 3D space.
 #[derive(Debug, Copy, Clone)]
 pub struct Vec3 {
+    /// The underlying vector components [x, y, z].
     pub vector: [f64; 3],
 }
 
+/// Alias for `Vec3` to represent a 3D point.
 pub type Point3 = Vec3;
-//constructors
+
+// Constructors
+
 impl Vec3 {
+    /// Creates a new `Vec3` from a tuple `(x, y, z)`.
+    #[inline(always)]
     pub fn new_from_tuple(tuple: (f64, f64, f64)) -> Self {
         Self {
             vector: [tuple.0, tuple.1, tuple.2],
         }
     }
+
+    /// Creates a new `Vec3` with components `x`, `y`, and `z`.
+    #[inline(always)]
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { vector: [x, y, z] }
     }
 }
 
 impl Default for Vec3 {
+    #[inline(always)]
     fn default() -> Self {
         Vec3 {
             vector: [0.0, 0.0, 0.0],
@@ -31,7 +43,8 @@ impl Default for Vec3 {
     }
 }
 
-//position
+// Position accessors
+
 impl Vec3 {
     #[inline(always)]
     pub fn x(&self) -> f64 {
@@ -49,27 +62,33 @@ impl Vec3 {
     }
 }
 
-//utilitis
+// Utility methods
+
 impl Vec3 {
-    #[inline]
+    /// Returns the squared length (magnitude) of the vector.
+    #[inline(always)]
     pub fn length_squared(&self) -> f64 {
         self.vector[0] * self.vector[0]
             + self.vector[1] * self.vector[1]
             + self.vector[2] * self.vector[2]
     }
 
-    #[inline]
+    /// Returns the length (magnitude) of the vector.
+    #[inline(always)]
     pub fn length(&self) -> f64 {
         self.length_squared().sqrt()
     }
 
-    #[inline]
+    /// Returns the dot product of `self` with `other`.
+    #[inline(always)]
     pub fn dot(&self, other: &Vec3) -> f64 {
         self.vector[0] * other.vector[0]
             + self.vector[1] * other.vector[1]
             + self.vector[2] * other.vector[2]
     }
 
+    /// Returns the cross product of `self` with `other`.
+    /// This is a larger operation and thus not forced inline.
     pub fn cross(&self, other: &Vec3) -> Vec3 {
         Vec3 {
             vector: [
@@ -80,15 +99,16 @@ impl Vec3 {
         }
     }
 
-    #[inline]
+    /// Returns the unit vector in the direction of `v`.
+    /// Returns the zero vector if `v` has zero length.
+    #[inline(always)]
     pub fn unit_vector(v: Vec3) -> Vec3 {
-        if v.length() == 0.0 {
-            return Vec3::default();
-        } else {
-            v / v.length()
-        }
+        let len = v.length();
+        if len == 0.0 { Vec3::default() } else { v / len }
     }
 
+    /// Generates a random vector with each component in [0, 1).
+    #[inline(always)]
     pub fn random() -> Self {
         Self::new(
             rtweekend::random_double(),
@@ -97,6 +117,8 @@ impl Vec3 {
         )
     }
 
+    /// Generates a random vector with components in the given range `[min, max)`.
+    #[inline(always)]
     pub fn random_range(min: f64, max: f64) -> Self {
         Self::new(
             rtweekend::random_double_range(min, max),
@@ -105,8 +127,7 @@ impl Vec3 {
         )
     }
 
-    #[inline]
-    // rejection method
+    /// Generates a random unit vector using rejection sampling.
     pub fn random_unit_vector() -> Self {
         loop {
             let p = Vec3::random_range(-1.0, 1.0);
@@ -118,7 +139,7 @@ impl Vec3 {
         }
     }
 
-    #[inline]
+    /// Generates a random vector within a unit disk (xy-plane).
     pub fn random_in_unit_disk() -> Self {
         loop {
             let p = Vec3::new(
@@ -131,40 +152,41 @@ impl Vec3 {
             }
         }
     }
-    #[inline]
+
+    /// Generates a random vector on the hemisphere oriented by `normal`.
     pub fn random_on_hemisphere(normal: &Vec3) -> Self {
         let on_unit_sphere = Vec3::random_unit_vector();
         if Vec3::dot(&on_unit_sphere, normal) > 0.0 {
-            return on_unit_sphere;
+            on_unit_sphere
         } else {
-            return -on_unit_sphere;
+            -on_unit_sphere
         }
     }
 
-    #[inline]
+    /// Returns `true` if the vector is close to zero in all dimensions.
+    #[inline(always)]
     pub fn near_zero(&self) -> bool {
-        // Return true if the vector is close to zero in all dimensions.
         let s = 1e-8;
-        return self.vector[0] < s && self.vector[1] < s && self.vector[2] < s;
+        self.vector[0].abs() < s && self.vector[1].abs() < s && self.vector[2].abs() < s
     }
 
-    #[inline]
+    /// Reflects vector `v` about normal `n`.
+    #[inline(always)]
     pub fn reflect(v: &Vec3, n: &Vec3) -> Self {
         *v - 2.0 * v.dot(n) * *n
     }
 
-    #[inline]
-    // Snell's Law
+    /// Calculates refraction vector of `uv` through surface with normal `n` and ratio `etai_over_etat`.
     pub fn refract(uv: &Vec3, n: &Vec3, etai_over_etat: f64) -> Self {
         let cos_theta = (-uv.dot(n)).min(1.0);
         let r_out_perp = etai_over_etat * (*uv + cos_theta * *n);
         let r_out_parallel = -((1.0 - r_out_perp.length_squared()).abs().sqrt()) * *n;
 
-        return r_out_perp + r_out_parallel;
+        r_out_perp + r_out_parallel
     }
 }
 
-//operations
+// Operator overloads and trait implementations
 
 impl Display for Vec3 {
     #[inline(always)]
@@ -180,6 +202,7 @@ impl Display for Vec3 {
 impl Add for Vec3 {
     type Output = Vec3;
 
+    #[inline(always)]
     fn add(self, other: Vec3) -> Vec3 {
         Vec3 {
             vector: [
@@ -192,6 +215,7 @@ impl Add for Vec3 {
 }
 
 impl AddAssign for Vec3 {
+    #[inline(always)]
     fn add_assign(&mut self, rhs: Self) {
         self.vector[0] += rhs.vector[0];
         self.vector[1] += rhs.vector[1];
@@ -202,6 +226,7 @@ impl AddAssign for Vec3 {
 impl Sub for Vec3 {
     type Output = Vec3;
 
+    #[inline(always)]
     fn sub(self, other: Vec3) -> Vec3 {
         Vec3 {
             vector: [
@@ -214,6 +239,7 @@ impl Sub for Vec3 {
 }
 
 impl SubAssign for Vec3 {
+    #[inline(always)]
     fn sub_assign(&mut self, rhs: Self) {
         self.vector[0] -= rhs.vector[0];
         self.vector[1] -= rhs.vector[1];
@@ -224,6 +250,7 @@ impl SubAssign for Vec3 {
 impl Neg for Vec3 {
     type Output = Vec3;
 
+    #[inline(always)]
     fn neg(self) -> Vec3 {
         Vec3 {
             vector: [-self.vector[0], -self.vector[1], -self.vector[2]],
@@ -234,6 +261,7 @@ impl Neg for Vec3 {
 impl Mul for Vec3 {
     type Output = Vec3;
 
+    #[inline(always)]
     fn mul(self, rhs: Self) -> Vec3 {
         Vec3 {
             vector: [
@@ -248,6 +276,7 @@ impl Mul for Vec3 {
 impl Mul<f64> for Vec3 {
     type Output = Vec3;
 
+    #[inline(always)]
     fn mul(self, t: f64) -> Vec3 {
         Vec3 {
             vector: [self.vector[0] * t, self.vector[1] * t, self.vector[2] * t],
@@ -258,6 +287,7 @@ impl Mul<f64> for Vec3 {
 impl Mul<Vec3> for f64 {
     type Output = Vec3;
 
+    #[inline(always)]
     fn mul(self, v: Vec3) -> Vec3 {
         Vec3 {
             vector: [v.vector[0] * self, v.vector[1] * self, v.vector[2] * self],
@@ -266,6 +296,7 @@ impl Mul<Vec3> for f64 {
 }
 
 impl MulAssign<f64> for Vec3 {
+    #[inline(always)]
     fn mul_assign(&mut self, t: f64) {
         self.vector[0] *= t;
         self.vector[1] *= t;
@@ -276,6 +307,7 @@ impl MulAssign<f64> for Vec3 {
 impl Div<f64> for Vec3 {
     type Output = Vec3;
 
+    #[inline(always)]
     fn div(self, t: f64) -> Vec3 {
         if t == 0.0 {
             panic!("Attempt to divide Vec3 by zero");
@@ -285,6 +317,7 @@ impl Div<f64> for Vec3 {
 }
 
 impl DivAssign<f64> for Vec3 {
+    #[inline(always)]
     fn div_assign(&mut self, rhs: f64) {
         if rhs == 0.0 {
             panic!("Attempt to divide Vec3 by zero");
@@ -298,6 +331,7 @@ impl DivAssign<f64> for Vec3 {
 impl Index<usize> for Vec3 {
     type Output = f64;
 
+    #[inline(always)]
     fn index(&self, index: usize) -> &Self::Output {
         match index {
             0 => &self.vector[0],
@@ -309,6 +343,7 @@ impl Index<usize> for Vec3 {
 }
 
 impl IndexMut<usize> for Vec3 {
+    #[inline(always)]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         match index {
             0 => &mut self.vector[0],
@@ -320,6 +355,7 @@ impl IndexMut<usize> for Vec3 {
 }
 
 impl PartialEq for Vec3 {
+    #[inline(always)]
     fn eq(&self, other: &Vec3) -> bool {
         self.vector[0] == other.vector[0]
             && self.vector[1] == other.vector[1]

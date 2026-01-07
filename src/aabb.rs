@@ -12,7 +12,7 @@ pub struct AABB {
 }
 
 impl AABB {
-    // The default AABB is empty, since intervals are empty by default.
+    /// Creates an empty bounding box with empty intervals.
     pub fn new_empty() -> Self {
         Self {
             x: Interval::default(),
@@ -21,6 +21,8 @@ impl AABB {
         }
     }
 
+    /// Create a bounding box from given intervals on each axis,
+    /// padding if necessary so no side is too narrow.
     pub fn new(x: Interval, y: Interval, z: Interval) -> Self {
         let mut x = x;
         let mut y = y;
@@ -31,10 +33,8 @@ impl AABB {
         Self { x, y, z }
     }
 
+    /// Creates an AABB that covers two points `a` and `b`.
     pub fn new_from_points(a: Point3, b: Point3) -> Self {
-        // Treat the two points a and b as extrema for the bounding box, so we don't require a
-        // particular minimum/maximum coordinate order.
-
         let mut x = if a[0] <= b[0] {
             Interval::new(a[0], b[0])
         } else {
@@ -58,6 +58,7 @@ impl AABB {
         Self { x, y, z }
     }
 
+    /// Creates an AABB that covers the union of two bounding boxes.
     pub fn new_(box0: AABB, box1: AABB) -> Self {
         Self {
             x: Interval::new_(box0.x, box1.x),
@@ -65,50 +66,49 @@ impl AABB {
             z: Interval::new_(box0.z, box1.z),
         }
     }
-}
 
-impl AABB {
+    /// Returns index (0=x,1=y,2=z) of the longest axis.
     pub fn longest_axis(&self) -> i8 {
-        // Returns the index of the longest axis of the bounding box.
         if self.x.size() > self.y.size() {
             if self.x.size() > self.z.size() {
-                return 0;
+                0
             } else {
-                return 2;
+                2
             }
         } else {
             if self.y.size() > self.z.size() {
-                return 1;
+                1
             } else {
-                return 2;
+                2
             }
         }
     }
+
+    /// Returns a reference to the interval on the given axis (0=x,1=y,2=z).
     pub fn axis_interval(&self, n: i8) -> &Interval {
-        if n == 1 {
-            return &self.y;
+        match n {
+            1 => &self.y,
+            2 => &self.z,
+            _ => &self.x,
         }
-        if n == 2 {
-            return &self.z;
-        }
-        return &self.x;
     }
 
+    /// An empty bounding box with empty intervals on all axes.
     pub const EMPTY: AABB = AABB {
         x: Interval::EMPTY,
         y: Interval::EMPTY,
         z: Interval::EMPTY,
     };
 
+    /// A bounding box that covers all space (infinite intervals).
     pub const UNIVERSE: AABB = AABB {
         x: Interval::UNIVERSE,
         y: Interval::UNIVERSE,
         z: Interval::UNIVERSE,
     };
 
+    /// Pad any interval with size less than a small delta to that delta size.
     fn pad_to_minimums(x: &mut Interval, y: &mut Interval, z: &mut Interval) {
-        // Adjust the AABB so that no side is narrower than some delta, padding if necessary.
-
         let delta = 0.0001;
 
         if x.size() < delta {
@@ -123,6 +123,7 @@ impl AABB {
     }
 }
 
+// Adding Vec3 offset to an AABB (shifting the box)
 impl Add<Vec3> for AABB {
     type Output = AABB;
 
@@ -135,6 +136,7 @@ impl Add<Vec3> for AABB {
     }
 }
 
+// Adding an AABB to a Vec3 (offset), delegating to Vec3 + AABB
 impl Add<AABB> for Vec3 {
     type Output = AABB;
 
@@ -143,14 +145,11 @@ impl Add<AABB> for Vec3 {
     }
 }
 
-
-
+// Implement ray-AABB intersection
 impl Hittable for AABB {
-    fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
+    fn hit(&self, r: &Ray, mut ray_t: Interval, _rec: &mut HitRecord) -> bool {
         let ray_orig: Point3 = r.origin();
         let ray_dir = r.direction();
-
-        let mut ray_t = ray_t;
 
         for axis in 0..3 {
             let ax = self.axis_interval(axis);
@@ -161,28 +160,29 @@ impl Hittable for AABB {
 
             if t0 < t1 {
                 if t0 > ray_t.min {
-                    ray_t.min = t0
-                };
+                    ray_t.min = t0;
+                }
                 if t1 < ray_t.max {
-                    ray_t.max = t1
-                };
+                    ray_t.max = t1;
+                }
             } else {
                 if t1 > ray_t.min {
-                    ray_t.min = t1
-                };
+                    ray_t.min = t1;
+                }
                 if t0 < ray_t.max {
-                    ray_t.max = t0
-                };
+                    ray_t.max = t0;
+                }
             }
 
             if ray_t.max <= ray_t.min {
                 return false;
             }
         }
-        return true;
+        true
     }
 
+    // The bounding box of an AABB is itself
     fn bounding_box(&self) -> AABB {
-        AABB::new_empty()
+        *self
     }
 }

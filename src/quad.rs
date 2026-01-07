@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    Hittable, Material, Point3, Ray, Vec3, aabb::AABB, color::Color, hittable::HitRecord, hittable_list::{self, HittableList}, interval::Interval, texture::Texture
+    Hittable, Material, Point3, Ray, Vec3, aabb::AABB, color::Color, hittable::HitRecord, hittable_list::HittableList, interval::Interval, texture::Texture
 };
 
 /// 2D primitives that can be carved out in the (alpha, beta) plane.
@@ -52,14 +52,14 @@ impl Quad {
     }
 
     fn set_bounding_box(q: &Point3, u: &Vec3, v: &Vec3) -> AABB {
-        // Compute the bounding box of all four vertices.
+        // Compute bounding box enclosing all four vertices of the quad
         let bbox_diagonal1 = AABB::new_from_points(*q, *q + *u + *v);
         let bbox_diagonal2 = AABB::new_from_points(*q + *u, *q + *v);
         AABB::new_(bbox_diagonal1, bbox_diagonal2)
     }
 
     /// Return true iff (a,b) is inside the chosen primitive.
-    /// `hit_p` is the 3D intersection point on the plane (needed for texture sampling).
+    /// `hit_p` is the 3D intersection point on the plane (for texture sampling).
     pub fn is_interior(&self, a: f64, b: f64, hit_p: &Point3, rec: &mut HitRecord) -> bool {
         match &self.primitive {
             Primitive::Quad => {
@@ -119,24 +119,22 @@ impl Quad {
             }
 
             Primitive::TextureMask(tex) => {
-                // quick reject: outside unit square
+                // Reject if outside unit square UV range
                 if a < 0.0 || a > 1.0 || b < 0.0 || b > 1.0 {
                     return false;
                 }
 
-                // Use (a,b) directly as UV; clamp for safety
+                // Clamp UV coordinates
                 let ua = a.clamp(0.0, 1.0);
                 let vb = b.clamp(0.0, 1.0);
 
-                // Sample the texture using your project's Texture trait:
+                // Sample the texture
                 let col: Color = tex.value(ua, vb, hit_p);
 
-                // Compute luminance / brightness to decide mask.
-                // I assume Color exposes component accessors x(), y(), z().
-                // If your Color type uses r()/g()/b() or other names, replace accordingly.
+                // Calculate luminance as average of RGB components
                 let lum = (col.x() + col.y() + col.z()) / 3.0;
 
-                // Threshold can be tuned
+                // Threshold for mask
                 if lum >= 0.5 {
                     rec.u = a;
                     rec.v = b;
@@ -147,7 +145,7 @@ impl Quad {
             }
 
             Primitive::Mandelbrot { iterations } => {
-                // map (a,b) in [0,1] to complex plane region (adjust domain if you want different view)
+                // Map UV (a,b) to complex plane region
                 let cre = map_range(a, 0.0, 1.0, -2.0, 1.0);
                 let cim = map_range(b, 0.0, 1.0, -1.5, 1.5);
 
@@ -162,15 +160,13 @@ impl Quad {
         }
     }
 
-    pub fn Box(a: &Point3, b: &Point3, mat: Rc<dyn Material>) -> HittableList {
-       
-        // Returns the 3D box (six sides) that contains the two opposite vertices a & b.
-
+    /// Creates a box shape from two points and material, returning the six quads as a HittableList.
+    pub fn box_shape(a: &Point3, b: &Point3, mat: Rc<dyn Material>) -> HittableList {
         let mut sides = HittableList::new();
 
-        // Construct the two opposite vertices with the minimum and maximum coordinates.
-        let min = Point3::new(a.x().min(b.x()), a.y().min(b.y()), a.z().min(b.z()),);
-        let max = Point3::new(a.x().max(b.x()), a.y().max(b.y()), a.z().max(b.z()),);
+        // Compute min and max corners for the box
+        let min = Point3::new(a.x().min(b.x()), a.y().min(b.y()), a.z().min(b.z()));
+        let max = Point3::new(a.x().max(b.x()), a.y().max(b.y()), a.z().max(b.z()));
 
         let dx = Vec3::new(max.x() - min.x(), 0.0, 0.0);
         let dy = Vec3::new(0.0, max.y() - min.y(), 0.0);
@@ -183,39 +179,41 @@ impl Quad {
         sides.add(Rc::new(Quad::new(Point3::new(min.x(), max.y(), max.z()),  dx, -dz, mat.clone(), Primitive::Quad)));  // top
         sides.add(Rc::new(Quad::new(Point3::new(min.x(), min.y(), min.z()),  dx,  dz, mat.clone(), Primitive::Quad)));  // bottom
 
-        return sides;
-}
-
-
+        sides
+    }
 }
 
 impl Hittable for Quad {
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
         let denom = Vec3::dot(&self.normal, &r.direction());
 
-        // No hit if the ray is parallel to the plane.
+        // Return false if ray is parallel to the plane
         if denom.abs() < 1e-8 {
             return false;
         }
 
-        // Return false if the hit point parameter t is outside the ray interval.
+        // Compute t parameter for ray-plane intersection
         let t = (self.d - Vec3::dot(&self.normal, &r.origin())) / denom;
+
+        // Check if t is within ray's acceptable range
         if !ray_t.contains(t) {
             return false;
         }
 
-        // Determine if the hit point lies within the planar shape using its plane coordinates.
+        // Compute intersection point
         let intersection = r.at(t);
+
+        // Compute planar coordinates (alpha, beta) relative to quad edges
         let planar_hitpt_vector = intersection - self.q;
         let alpha = Vec3::dot(&self.w, &Vec3::cross(&planar_hitpt_vector, &self.v));
         let beta = Vec3::dot(&self.w, &Vec3::cross(&self.u, &planar_hitpt_vector));
 
-        // pass intersection to is_interior so texture sampling has access to 3D hit point
+        // Check if point is inside primitive shape
         if !self.is_interior(alpha, beta, &intersection, rec) {
             return false;
         }
 
-        // Ray hits the 2D shape; set the rest of the hit record and return true.
+        // Set hit record info
         rec.t = t;
         rec.p = intersection;
         rec.mat = Some(Rc::clone(&self.mat));
@@ -229,13 +227,13 @@ impl Hittable for Quad {
     }
 }
 
-/// Utility: linear mapping
+/// Maps x in [x0,x1] linearly to y in [y0,y1].
 fn map_range(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
     let t = if x1 != x0 { (x - x0) / (x1 - x0) } else { 0.0 };
     y0 + t * (y1 - y0)
 }
 
-/// Mandelbrot escape-time membership: true if point does NOT escape within `iterations`.
+/// Checks if point (cre, cim) is in the Mandelbrot set (does not escape in `iterations`).
 fn mandelbrot_contains(cre: f64, cim: f64, iterations: usize) -> bool {
     let mut zr = 0.0;
     let mut zi = 0.0;
@@ -243,7 +241,7 @@ fn mandelbrot_contains(cre: f64, cim: f64, iterations: usize) -> bool {
     let mut zi2 = 0.0;
 
     for _ in 0..iterations {
-        // z = z*z + c  where z = zr + i*zi
+        // z = z*z + c where z = zr + i*zi
         zi = 2.0 * zr * zi + cim;
         zr = zr2 - zi2 + cre;
 
@@ -251,8 +249,8 @@ fn mandelbrot_contains(cre: f64, cim: f64, iterations: usize) -> bool {
         zi2 = zi * zi;
 
         if zr2 + zi2 > 4.0 {
-            return false; // escaped -> not in set
+            return false; // escaped, not in set
         }
     }
-    true // did not escape -> treat as interior
+    true // did not escape, treat as interior
 }

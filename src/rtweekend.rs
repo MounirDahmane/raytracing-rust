@@ -1,11 +1,9 @@
-use rand::rngs::ThreadRng;
 use rand::{rng, Rng};
 
-// Constants
 pub const INFINITY: f64 = f64::INFINITY;
 pub const PI: f64 = 3.1415926535897932385;
 
-// Utility Functions
+#[inline]
 pub fn degrees_to_radians(degrees: f64) -> f64 {
     degrees * PI / 180.0
 }
@@ -21,7 +19,7 @@ pub fn random_double_range(min: f64, max: f64) -> f64 {
 
 #[inline]
 pub fn random_int_range(min: i32, max: i32) -> i32 {
-    // Returns a random integer in [min,max].
-    let max = max + 1;
-    return random_double_range(min as f64, max as f64) as i32;
+    // Inclusive range [min, max]
+    let max_exclusive = max + 1;
+    random_double_range(min as f64, max_exclusive as f64) as i32
 }
