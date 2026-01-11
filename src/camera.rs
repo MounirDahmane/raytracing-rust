@@ -6,28 +6,30 @@ use crate::{
     rtweekend::{self, *},
     vec3::{Point3, Vec3},
 };
+use std::fs::File;
+use std::path::Path;
 
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::io::{self, BufWriter, Write};
 
 pub struct Camera {
-    pub aspect_ratio: f64,      // Ratio of image width over height
-    pub img_width: u32,         // Rendered image width in pixel count
-    pub samples_per_pixel: u32, // Count of random samples per pixel
-    pub max_depth: u32,         // Maximum number of ray bounces into scene
-    pub background: Color,      // Scene background color
+    pub aspect_ratio: f64,
+    pub img_width: u32,
+    pub samples_per_pixel: u32,
+    pub max_depth: u32,
+    pub background: Color,
     pub use_gradient_sky: bool,
-    pub vfov: f64,              // Vertical field of view in degrees
-    pub lookfrom: Point3,       // Camera position
-    pub lookat: Point3,         // Look-at target point
-    pub vup: Vec3,              // "Up" direction for camera orientation
+    pub vfov: f64,
+    pub lookfrom: Point3,
+    pub lookat: Point3,
+    pub vup: Vec3,
 
-    pub defocus_angle: f64,     // Angle controlling depth of field (defocus)
-    pub focus_dist: f64,        // Distance to focal plane
+    pub defocus_angle: f64,
+    pub focus_dist: f64,
 
-    defocus_disk_u: Vec3,       // Defocus disk horizontal vector
-    defocus_disk_v: Vec3,       // Defocus disk vertical vector
+    defocus_disk_u: Vec3,
+    defocus_disk_v: Vec3,
 
     image_height: u32,
     pixel_samples_scale: f64,
@@ -37,10 +39,11 @@ pub struct Camera {
     pixel00_loc: Vec3,
     u: Vec3,
     v: Vec3,
-    w: Vec3,                   // Camera coordinate basis vectors
+    w: Vec3,
 }
 
 impl Camera {
+    /// Creates a new camera with given parameters and precomputes camera basis vectors.
     pub fn init(
         aspect_ratio: f64,
         img_width: u32,
@@ -84,37 +87,30 @@ impl Camera {
         camera
     }
 
-    
+    /// Renders the scene to stdout in PPM format with a progress bar.
     pub fn render(&mut self, world: &(dyn Hittable + Sync)) {
         let stdout = io::stdout();
         let mut out = BufWriter::new(stdout.lock());
 
-        // PPM header
+        // Write PPM header
         let header = format!("P3\n{} {}\n255\n", self.img_width, self.image_height);
         out.write_all(header.as_bytes()).unwrap();
 
-        // Progress bar (shared, thread-safe)
         let bar = ProgressBar::new(self.image_height as u64);
 
-        // Compute each scanline in parallel. We produce (row_index, bytes) pairs,
-        // then sort by row_index and write rows in order to preserve image ordering.
         let width = self.img_width;
         let height = self.image_height;
         let samples_per_pixel = self.samples_per_pixel;
         let max_depth = self.max_depth;
         let pixel_scale = self.pixel_samples_scale;
 
-        // Capture `self` by immutable reference for thread-safe read-only access.
-        // (Camera's fields are plain Copy/Send types.)
         let camera_ref = &*self;
 
+        // Compute scanlines in parallel
         let mut rows: Vec<(u32, Vec<u8>)> = (0..height)
             .into_par_iter()
             .map(|j| {
-                // Build this scanline's bytes into a buffer
                 let mut buf = Vec::with_capacity((width as usize) * 16);
-
-                // For each pixel in the scanline
                 for i in 0..width {
                     let mut pixel_color = Color::new(0.0, 0.0, 0.0);
                     for _s in 0..samples_per_pixel {
@@ -122,20 +118,17 @@ impl Camera {
                         pixel_color += camera_ref.ray_color(&r, max_depth, world);
                     }
                     pixel_color *= pixel_scale;
-
-                    // Reuse existing write_color (writes ASCII bytes into our Vec<u8>)
                     color::write_color(&mut buf, &pixel_color).unwrap();
                 }
-
-                bar.inc(1); // update progress bar from worker thread
+                bar.inc(1);
                 (j, buf)
             })
             .collect();
 
-        // Ensure scanlines in correct order (j ascending)
+        // Sort rows to output in correct order
         rows.sort_by_key(|(j, _)| *j);
 
-        // Write scanlines to stdout in order
+        // Write rows to stdout
         for (_j, row) in rows {
             out.write_all(&row).unwrap();
         }
@@ -144,6 +137,64 @@ impl Camera {
         out.flush().unwrap();
     }
 
+    /// Renders the scene to a PPM file.
+    pub fn render_to_file(
+        &mut self,
+        world: &(dyn Hittable + Sync),
+        idx: i32,
+        filename: &str,
+    ) -> io::Result<()> {
+        let filename = format!("{}_{}.ppm", filename, idx);
+        if let Some(parent) = Path::new(&filename).parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let file = File::create(&filename)?;
+        let mut out = BufWriter::new(file);
+
+        let header = format!("P3\n{} {}\n255\n", self.img_width, self.image_height);
+        out.write_all(header.as_bytes())?;
+
+        let bar = ProgressBar::new(self.image_height as u64);
+
+        let width = self.img_width;
+        let height = self.image_height;
+        let samples_per_pixel = self.samples_per_pixel;
+        let max_depth = self.max_depth;
+        let pixel_scale = self.pixel_samples_scale;
+        let camera_ref = &*self;
+
+        // Parallel row computation
+        let mut rows: Vec<(u32, Vec<u8>)> = (0..height)
+            .into_par_iter()
+            .map(|j| {
+                let mut buf = Vec::with_capacity((width as usize) * 16);
+                for i in 0..width {
+                    let mut pixel_color = Color::new(0.0, 0.0, 0.0);
+                    for _ in 0..samples_per_pixel {
+                        let r = camera_ref.get_ray(i, j);
+                        pixel_color += camera_ref.ray_color(&r, max_depth, world);
+                    }
+                    pixel_color *= pixel_scale;
+                    color::write_color(&mut buf, &pixel_color).unwrap();
+                }
+                bar.inc(1);
+                (j, buf)
+            })
+            .collect();
+
+        rows.sort_by_key(|(j, _)| *j);
+
+        for (_j, row) in rows {
+            out.write_all(&row)?;
+        }
+
+        bar.finish();
+        out.flush()?;
+        Ok(())
+    }
+
+    /// Computes camera parameters and coordinate basis vectors.
     fn initialize(&mut self) {
         self.image_height = ((self.img_width as f64) / self.aspect_ratio) as u32;
         if self.image_height < 1 {
@@ -182,6 +233,7 @@ impl Camera {
         self.defocus_disk_v = self.v * defocus_radius;
     }
 
+    /// Recursive ray color calculation with material scattering and emission.
     fn ray_color(&self, r: &Ray, depth: u32, world: &dyn Hittable) -> Color {
         if depth == 0 {
             return Color::new(0.0, 0.0, 0.0);
@@ -215,6 +267,7 @@ impl Camera {
         color_from_emission + color_from_scatter
     }
 
+    /// Returns background color, either a gradient sky or solid color.
     fn get_background_color(&self, r: &Ray) -> Color {
         if self.use_gradient_sky {
             let unit_direction = Vec3::unit_vector(r.direction());
@@ -226,6 +279,7 @@ impl Camera {
         }
     }
 
+    /// Generates a ray from the camera through pixel (i, j), with optional defocus for depth of field.
     fn get_ray(&self, i: u32, j: u32) -> Ray {
         let offset = Camera::sample_square();
 
@@ -246,11 +300,13 @@ impl Camera {
         Ray::new(ray_origin, ray_direction, ray_time)
     }
 
+    /// Samples a random point on the defocus disk for depth of field effect.
     fn defocus_disk_sample(&self) -> Point3 {
         let p = Vec3::random_in_unit_disk();
         self.center + (p[0] * self.defocus_disk_u) + (p[1] * self.defocus_disk_v)
     }
 
+    /// Samples a random offset within a pixel square for anti-aliasing.
     fn sample_square() -> Vec3 {
         Vec3::new(random_double() - 0.5, random_double() - 0.5, 0.0)
     }

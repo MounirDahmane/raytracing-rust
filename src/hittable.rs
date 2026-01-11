@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use crate::aabb::AABB;
 use crate::material::Material;
 use crate::rtweekend::{self, INFINITY};
 use crate::vec3::{Point3, Vec3};
 use crate::{interval::Interval, Ray};
+use std::sync::Arc;
 
 pub struct HitRecord {
     pub p: Point3,
@@ -16,7 +16,7 @@ pub struct HitRecord {
 }
 
 impl HitRecord {
-    /// Sets the normal to always point against the incoming ray direction
+    /// Ensures normal faces opposite the ray direction.
     pub fn set_face_normal(&mut self, r: &Ray, outward_normal: &Vec3) {
         self.front_face = Vec3::dot(&r.direction(), outward_normal) < 0.0;
         self.normal = if self.front_face {
@@ -46,30 +46,35 @@ pub trait Hittable: Send + Sync {
     fn bounding_box(&self) -> AABB;
 }
 
+/// Translate wrapper: translates a hittable object by an offset.
 pub struct Translate {
-    object: Arc<dyn Hittable + Send + Sync>, 
+    object: Arc<dyn Hittable + Send + Sync>,
     offset: Vec3,
     bbox: AABB,
 }
 
 impl Translate {
     pub fn new(object: Arc<dyn Hittable + Send + Sync>, offset: Vec3) -> Self {
-        // Compute bounding box after translation by offset
+        // Compute bounding box after translation
         let bbox = object.bounding_box() + offset;
-        Self { object, offset, bbox }
+        Self {
+            object,
+            offset,
+            bbox,
+        }
     }
 }
 
 impl Hittable for Translate {
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
-        // Shift ray backwards by offset to test intersection in original space
+        // Move ray origin back by offset to perform hit test in object space
         let offset_r = Ray::new(r.origin() - self.offset, r.direction(), r.time());
 
         if !self.object.hit(&offset_r, ray_t, rec) {
             return false;
         }
 
-        // Move intersection point forward by offset to world space
+        // Translate hit point back to world space
         rec.p += self.offset;
 
         true
@@ -80,6 +85,7 @@ impl Hittable for Translate {
     }
 }
 
+/// RotateY wrapper: rotates a hittable object about the Y axis.
 pub struct RotateY {
     object: Arc<dyn Hittable + Send + Sync>,
     sin_theta: f64,
@@ -97,7 +103,7 @@ impl RotateY {
         let mut min = Point3::new(INFINITY, INFINITY, INFINITY);
         let mut max = Point3::new(-INFINITY, -INFINITY, -INFINITY);
 
-        // Rotate all 8 bounding box corners and find new AABB
+        // Compute rotated bounding box by rotating all 8 corners
         for i in 0..2 {
             for j in 0..2 {
                 for k in 0..2 {
@@ -131,7 +137,7 @@ impl RotateY {
 
 impl Hittable for RotateY {
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
-        // Rotate ray origin and direction to object's local coordinate system
+        // Rotate ray into object's local space
         let origin = Point3::new(
             self.cos_theta * r.origin().x() - self.sin_theta * r.origin().z(),
             r.origin().y(),
@@ -150,7 +156,7 @@ impl Hittable for RotateY {
             return false;
         }
 
-        // Rotate intersection point and normal back to world coordinate system
+        // Rotate hit point and normal back to world space
         rec.p = Point3::new(
             self.cos_theta * rec.p.x() + self.sin_theta * rec.p.z(),
             rec.p.y(),

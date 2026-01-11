@@ -1,33 +1,25 @@
 use std::sync::Arc;
 
-use crate::{
-    color::Color,
-    interval::Interval,
-    perlin::Perlin,
-    rtw_image::RtwImage,
-    vec3::Point3,
-};
+use crate::{color::Color, interval::Interval, perlin::Perlin, rtw_image::RtwImage, vec3::Point3};
 
-/// Trait for texture types that can provide a color value at given texture coordinates and position.
+/// Trait for textures that provide a color at given (u, v) coordinates and 3D point.
 pub trait Texture: Send + Sync {
-    /// Returns the color value of the texture at coordinates `(u, v)` and point `p`.
+    /// Returns the texture color at (u, v) and point p.
     fn value(&self, u: f64, v: f64, p: &Point3) -> Color;
 }
 
-/// A texture representing a single solid color.
+/// Texture representing a solid color.
 pub struct SolidColor {
-    /// The color value of the texture.
+    /// The color value.
     pub albedo: Color,
 }
 
 impl SolidColor {
-    /// Creates a new `SolidColor` from a reference to a `Color`.
     #[inline(always)]
     pub fn new(albedo: &Color) -> Self {
         Self { albedo: *albedo }
     }
 
-    /// Creates a new `SolidColor` from red, green, and blue components.
     #[inline(always)]
     pub fn new_(red: f64, green: f64, blue: f64) -> Self {
         Self {
@@ -43,7 +35,7 @@ impl Texture for SolidColor {
     }
 }
 
-/// A checkerboard texture alternating between two sub-textures.
+/// Checkerboard texture alternating between two sub-textures.
 pub struct CheckerTexture {
     inv_scale: f64,
     even: Arc<dyn Texture>,
@@ -51,7 +43,7 @@ pub struct CheckerTexture {
 }
 
 impl CheckerTexture {
-    /// Creates a new `CheckerTexture` from scale and two boxed textures.
+    /// Creates a checker texture from scale and two textures.
     #[inline(always)]
     pub fn new(scale: f64, even: Arc<dyn Texture>, odd: Arc<dyn Texture>) -> Self {
         Self {
@@ -61,7 +53,7 @@ impl CheckerTexture {
         }
     }
 
-    /// Creates a new `CheckerTexture` from scale and two solid colors.
+    /// Creates a checker texture from scale and two solid colors.
     #[inline(always)]
     pub fn new_(scale: f64, c1: &Color, c2: &Color) -> Self {
         Self::new(
@@ -88,7 +80,7 @@ impl Texture for CheckerTexture {
     }
 }
 
-/// A texture that maps an image file onto geometry.
+/// Texture that maps an image onto geometry.
 pub struct ImageTexture {
     image: RtwImage,
 }
@@ -105,11 +97,11 @@ impl ImageTexture {
 impl Texture for ImageTexture {
     fn value(&self, u: f64, v: f64, _p: &Point3) -> Color {
         if self.image.height() <= 0 {
-            // Return cyan color for missing texture (debugging aid)
+            // Cyan for missing texture as a debug color
             return Color::new(0.0, 1.0, 1.0);
         }
 
-        // Clamp texture coordinates to [0, 1], flip v for image coordinates
+        // Clamp UV coords and flip v for image origin
         let u = Interval::new(0.0, 1.0).clamp(u);
         let v = 1.0 - Interval::new(0.0, 1.0).clamp(v);
 
@@ -123,14 +115,13 @@ impl Texture for ImageTexture {
     }
 }
 
-/// A procedural noise texture using Perlin noise.
+/// Procedural noise texture using Perlin noise.
 pub struct NoiseTexture {
     noise: Perlin,
     scale: f64,
 }
 
 impl NoiseTexture {
-    /// Creates a new `NoiseTexture` with given scale (frequency).
     #[inline(always)]
     pub fn new(scale: f64) -> Self {
         Self {

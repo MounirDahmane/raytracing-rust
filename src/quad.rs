@@ -1,41 +1,50 @@
 use std::sync::Arc;
 
 use crate::{
-    Hittable, Material, Point3, Ray, Vec3, aabb::AABB, color::Color, hittable::HitRecord, hittable_list::HittableList, interval::Interval, texture::Texture
+    aabb::AABB, color::Color, hittable::HitRecord, hittable_list::HittableList, interval::Interval,
+    texture::Texture, Hittable, Material, Point3, Ray, Vec3,
 };
 
-/// 2D primitives that can be carved out in the (alpha, beta) plane.
+/// 2D primitives defined in (alpha, beta) parameter space for carving shapes.
 pub enum Primitive {
-    Quad,                               // unit square 0..=1 x 0..=1
-    Disk(f64),                          // disk radius r centered at (0,0)
-    Triangle,                           // triangle: a>=0, b>=0, a+b <= 1
-    Ellipse { rx: f64, ry: f64 },       // ellipse with radii rx, ry
-    Annulus { inner: f64, outer: f64 }, // ring: inner..outer
-    TextureMask(Arc<dyn Texture + Send + Sync>),       // mask based on texture value(u,v,p)
-    Mandelbrot { iterations: usize },   // mandelbrot membership (mapped from [0,1]^2)
+    Quad,                                        // Unit square [0..=1] x [0..=1]
+    Disk(f64),                                   // Disk with radius r centered at origin
+    Triangle,                                    // Triangle with a>=0, b>=0, and a+b <= 1
+    Ellipse { rx: f64, ry: f64 },                // Ellipse with radii rx, ry
+    Annulus { inner: f64, outer: f64 },          // Ring between inner and outer radii
+    TextureMask(Arc<dyn Texture + Send + Sync>), // Mask defined by texture luminance
+    Mandelbrot { iterations: usize },            // Mandelbrot set membership test
 }
 
+/// A planar quad (parallelogram) with an associated primitive shape for hit testing.
 pub struct Quad {
-    q: Point3,
-    u: Vec3,
-    v: Vec3,
-    w: Vec3,
-    mat: Arc<dyn Material + Send + Sync>,
-    bbox: AABB,
-    normal: Vec3,
-    d: f64,
-    primitive: Primitive,
+    q: Point3,                                  // Quad origin point
+    u: Vec3,                                   // First edge vector
+    v: Vec3,                                   // Second edge vector
+    w: Vec3,                                   // Vector for parameter space projection
+    mat: Arc<dyn Material + Send + Sync>,      // Material of the quad
+    bbox: AABB,                                // Bounding box enclosing the quad
+    normal: Vec3,                              // Plane normal vector
+    d: f64,                                    // Plane offset (dot(normal, q))
+    primitive: Primitive,                      // Primitive shape type used for interior testing
 }
 
 impl Quad {
-    pub fn new(q: Point3, u: Vec3, v: Vec3, mat: Arc<dyn Material + Send + Sync>, primitive: Primitive) -> Self {
+    /// Constructs a new Quad with given origin, edges, material, and primitive.
+    pub fn new(
+        q: Point3,
+        u: Vec3,
+        v: Vec3,
+        mat: Arc<dyn Material + Send + Sync>,
+        primitive: Primitive,
+    ) -> Self {
         let n = Vec3::cross(&u, &v);
         let bbox = Quad::set_bounding_box(&q, &u, &v);
 
         let normal = Vec3::unit_vector(n);
         let d = Vec3::dot(&normal, &q);
 
-        // matches your previous w: n / dot(n,n)
+        // Vector w is n normalized by dot(n,n), used for coordinate projection
         let w = n / Vec3::dot(&n, &n);
 
         Self {
@@ -51,15 +60,15 @@ impl Quad {
         }
     }
 
+    /// Computes axis-aligned bounding box enclosing all quad vertices.
     fn set_bounding_box(q: &Point3, u: &Vec3, v: &Vec3) -> AABB {
-        // Compute bounding box enclosing all four vertices of the quad
         let bbox_diagonal1 = AABB::new_from_points(*q, *q + *u + *v);
         let bbox_diagonal2 = AABB::new_from_points(*q + *u, *q + *v);
         AABB::new_(bbox_diagonal1, bbox_diagonal2)
     }
 
-    /// Return true iff (a,b) is inside the chosen primitive.
-    /// `hit_p` is the 3D intersection point on the plane (for texture sampling).
+    /// Returns true if the (a,b) coordinates lie inside the quad's primitive shape.
+    /// Updates the hit record's texture coordinates if true.
     pub fn is_interior(&self, a: f64, b: f64, hit_p: &Point3, rec: &mut HitRecord) -> bool {
         match &self.primitive {
             Primitive::Quad => {
@@ -119,22 +128,17 @@ impl Quad {
             }
 
             Primitive::TextureMask(tex) => {
-                // Reject if outside unit square UV range
+                // Reject if outside unit UV range
                 if a < 0.0 || a > 1.0 || b < 0.0 || b > 1.0 {
                     return false;
                 }
 
-                // Clamp UV coordinates
                 let ua = a.clamp(0.0, 1.0);
                 let vb = b.clamp(0.0, 1.0);
 
-                // Sample the texture
                 let col: Color = tex.value(ua, vb, hit_p);
-
-                // Calculate luminance as average of RGB components
                 let lum = (col.x() + col.y() + col.z()) / 3.0;
 
-                // Threshold for mask
                 if lum >= 0.5 {
                     rec.u = a;
                     rec.v = b;
@@ -145,7 +149,7 @@ impl Quad {
             }
 
             Primitive::Mandelbrot { iterations } => {
-                // Map UV (a,b) to complex plane region
+                // Map (a,b) to complex plane and test membership
                 let cre = map_range(a, 0.0, 1.0, -2.0, 1.0);
                 let cim = map_range(b, 0.0, 1.0, -1.5, 1.5);
 
@@ -160,11 +164,10 @@ impl Quad {
         }
     }
 
-    /// Creates a box shape from two points and material, returning the six quads as a HittableList.
+    /// Constructs a box shape from two points and material, returns six quads forming the box.
     pub fn box_shape(a: &Point3, b: &Point3, mat: Arc<dyn Material + Send + Sync>) -> HittableList {
         let mut sides = HittableList::new();
 
-        // Compute min and max corners for the box
         let min = Point3::new(a.x().min(b.x()), a.y().min(b.y()), a.z().min(b.z()));
         let max = Point3::new(a.x().max(b.x()), a.y().max(b.y()), a.z().max(b.z()));
 
@@ -172,12 +175,53 @@ impl Quad {
         let dy = Vec3::new(0.0, max.y() - min.y(), 0.0);
         let dz = Vec3::new(0.0, 0.0, max.z() - min.z());
 
-        sides.add(Arc::new(Quad::new(Point3::new(min.x(), min.y(), max.z()),  dx,  dy, mat.clone(), Primitive::Quad)));  // front
-        sides.add(Arc::new(Quad::new(Point3::new(max.x(), min.y(), max.z()), -dz,  dy, mat.clone(), Primitive::Quad)));  // right
-        sides.add(Arc::new(Quad::new(Point3::new(max.x(), min.y(), min.z()), -dx,  dy, mat.clone(), Primitive::Quad)));  // back
-        sides.add(Arc::new(Quad::new(Point3::new(min.x(), min.y(), min.z()),  dz,  dy, mat.clone(), Primitive::Quad)));  // left
-        sides.add(Arc::new(Quad::new(Point3::new(min.x(), max.y(), max.z()),  dx, -dz, mat.clone(), Primitive::Quad)));  // top
-        sides.add(Arc::new(Quad::new(Point3::new(min.x(), min.y(), min.z()),  dx,  dz, mat.clone(), Primitive::Quad)));  // bottom
+        sides.add(Arc::new(Quad::new(
+            Point3::new(min.x(), min.y(), max.z()),
+            dx,
+            dy,
+            mat.clone(),
+            Primitive::Quad,
+        ))); // front
+
+        sides.add(Arc::new(Quad::new(
+            Point3::new(max.x(), min.y(), max.z()),
+            -dz,
+            dy,
+            mat.clone(),
+            Primitive::Quad,
+        ))); // right
+
+        sides.add(Arc::new(Quad::new(
+            Point3::new(max.x(), min.y(), min.z()),
+            -dx,
+            dy,
+            mat.clone(),
+            Primitive::Quad,
+        ))); // back
+
+        sides.add(Arc::new(Quad::new(
+            Point3::new(min.x(), min.y(), min.z()),
+            dz,
+            dy,
+            mat.clone(),
+            Primitive::Quad,
+        ))); // left
+
+        sides.add(Arc::new(Quad::new(
+            Point3::new(min.x(), max.y(), max.z()),
+            dx,
+            -dz,
+            mat.clone(),
+            Primitive::Quad,
+        ))); // top
+
+        sides.add(Arc::new(Quad::new(
+            Point3::new(min.x(), min.y(), min.z()),
+            dx,
+            dz,
+            mat.clone(),
+            Primitive::Quad,
+        ))); // bottom
 
         sides
     }
@@ -187,33 +231,32 @@ impl Hittable for Quad {
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
         let denom = Vec3::dot(&self.normal, &r.direction());
 
-        // Return false if ray is parallel to the plane
+        // Reject ray if parallel to quad plane
         if denom.abs() < 1e-8 {
             return false;
         }
 
-        // Compute t parameter for ray-plane intersection
+        // Compute intersection distance along ray
         let t = (self.d - Vec3::dot(&self.normal, &r.origin())) / denom;
 
-        // Check if t is within ray's acceptable range
+        // Check if intersection is within ray parameter bounds
         if !ray_t.contains(t) {
             return false;
         }
 
-        // Compute intersection point
         let intersection = r.at(t);
 
-        // Compute planar coordinates (alpha, beta) relative to quad edges
+        // Compute planar coordinates for hit point relative to quad edges
         let planar_hitpt_vector = intersection - self.q;
         let alpha = Vec3::dot(&self.w, &Vec3::cross(&planar_hitpt_vector, &self.v));
         let beta = Vec3::dot(&self.w, &Vec3::cross(&self.u, &planar_hitpt_vector));
 
-        // Check if point is inside primitive shape
+        // Verify hit point lies inside primitive shape
         if !self.is_interior(alpha, beta, &intersection, rec) {
             return false;
         }
 
-        // Set hit record info
+        // Update hit record with intersection details
         rec.t = t;
         rec.p = intersection;
         rec.mat = Some(Arc::clone(&self.mat));
@@ -227,13 +270,13 @@ impl Hittable for Quad {
     }
 }
 
-/// Maps x in [x0,x1] linearly to y in [y0,y1].
+/// Linearly maps `x` from range [x0,x1] to [y0,y1].
 fn map_range(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
     let t = if x1 != x0 { (x - x0) / (x1 - x0) } else { 0.0 };
     y0 + t * (y1 - y0)
 }
 
-/// Checks if point (cre, cim) is in the Mandelbrot set (does not escape in `iterations`).
+/// Determines if complex point (cre, cim) belongs to Mandelbrot set for given iterations.
 fn mandelbrot_contains(cre: f64, cim: f64, iterations: usize) -> bool {
     let mut zr = 0.0;
     let mut zi = 0.0;
@@ -241,7 +284,6 @@ fn mandelbrot_contains(cre: f64, cim: f64, iterations: usize) -> bool {
     let mut zi2 = 0.0;
 
     for _ in 0..iterations {
-        // z = z*z + c where z = zr + i*zi
         zi = 2.0 * zr * zi + cim;
         zr = zr2 - zi2 + cre;
 
@@ -249,8 +291,8 @@ fn mandelbrot_contains(cre: f64, cim: f64, iterations: usize) -> bool {
         zi2 = zi * zi;
 
         if zr2 + zi2 > 4.0 {
-            return false; // escaped, not in set
+            return false;
         }
     }
-    true // did not escape, treat as interior
+    true
 }

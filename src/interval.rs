@@ -12,29 +12,29 @@ impl Interval {
         Interval { min, max }
     }
 
-    /// Create a new interval covering both a and b (union).
+    /// Union of two intervals, covers both.
     pub fn new_(a: Interval, b: Interval) -> Self {
         let min = if a.min <= b.min { a.min } else { b.min };
         let max = if a.max >= b.max { a.max } else { b.max };
         Interval { min, max }
     }
 
-    /// Length of the interval.
+    /// Interval length.
     pub fn size(&self) -> f64 {
         self.max - self.min
     }
 
-    /// Checks if x is within [min, max].
+    /// Checks if x ∈ [min, max].
     pub fn contains(&self, x: f64) -> bool {
         self.min <= x && x <= self.max
     }
 
-    /// Checks if x is strictly inside (min, max).
+    /// Checks if x ∈ (min, max).
     pub fn surrounds(&self, x: f64) -> bool {
         self.min < x && x < self.max
     }
 
-    /// Clamp x to the interval boundaries.
+    /// Clamp x to [min, max].
     pub fn clamp(&self, x: f64) -> f64 {
         if x < self.min {
             self.min
@@ -45,19 +45,19 @@ impl Interval {
         }
     }
 
-    /// Interval representing an empty range.
+    /// Empty interval (no range).
     pub const EMPTY: Interval = Interval {
         min: f64::INFINITY,
         max: f64::NEG_INFINITY,
     };
 
-    /// Interval representing the entire real line.
+    /// Entire real line interval.
     pub const UNIVERSE: Interval = Interval {
         min: f64::NEG_INFINITY,
         max: f64::INFINITY,
     };
 
-    /// Expand the interval by delta (adds padding equally on both sides).
+    /// Expand interval by delta, padding equally on both sides.
     pub fn expand(&self, delta: f64) -> Self {
         let padding = delta / 2.0;
         Interval {
@@ -76,7 +76,7 @@ impl Default for Interval {
 impl Add<f64> for Interval {
     type Output = Interval;
 
-    /// Shift the interval by a displacement value.
+    /// Shift interval by displacement.
     fn add(self, displacement: f64) -> Interval {
         Interval {
             min: self.min + displacement,
@@ -88,7 +88,7 @@ impl Add<f64> for Interval {
 impl Add<Interval> for f64 {
     type Output = Interval;
 
-    /// Allow adding Interval to f64 (commutative).
+    /// Allow displacement + interval.
     fn add(self, ival: Interval) -> Interval {
         ival + self
     }

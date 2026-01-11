@@ -3,22 +3,26 @@ use crate::hittable::{HitRecord, Hittable};
 use crate::interval::Interval;
 use crate::material::*;
 use crate::ray::Ray;
-use crate::vec3::{Point3, Vec3};
 use crate::rtweekend::PI;
+use crate::vec3::{Point3, Vec3};
 use std::sync::Arc;
 
 /// Represents a sphere, which can be static or moving, with a material and bounding box.
 pub struct Sphere {
-    center: Ray,           // Represents the center position and velocity (for moving spheres).
-    radius: f64,           // Sphere radius, non-negative.
-    mat: Arc<dyn Material + Send + Sync>, // Shared reference to the sphere's material.
-    bbox: AABB,            // Axis-aligned bounding box for the sphere.
+    center: Ray, // Center position and velocity for moving spheres.
+    radius: f64, // Sphere radius, non-negative.
+    mat: Arc<dyn Material + Send + Sync>, // Material reference.
+    bbox: AABB,  // Bounding box enclosing the sphere.
 }
 
 impl Sphere {
     /// Creates a new static sphere with fixed center and radius.
     #[inline(always)]
-    pub fn new_static_sphere(static_center: Point3, radius: f64, mat: Arc<dyn Material + Send + Sync>) -> Self {
+    pub fn new_static_sphere(
+        static_center: Point3,
+        radius: f64,
+        mat: Arc<dyn Material + Send + Sync>,
+    ) -> Self {
         let rvec = Vec3::new(radius, radius, radius);
         let bbox = AABB::new_from_points(static_center - rvec, static_center + rvec);
 
@@ -56,15 +60,11 @@ impl Sphere {
 }
 
 impl Sphere {
-    /// Computes the UV texture coordinates on a unit sphere at point `p`.
+    /// Computes UV texture coordinates for a point on the unit sphere.
     ///
-    /// - `p`: point on the unit sphere (centered at origin).
-    /// - `u`: mutable reference to store horizontal coordinate in [0,1].
-    /// - `v`: mutable reference to store vertical coordinate in [0,1].
-    ///
-    /// Explanation:
-    /// - `u` is angle around the Y axis from X = -1 (left).
-    /// - `v` is angle from Y = -1 (bottom) to Y = +1 (top).
+    /// `p`: Point on the unit sphere (centered at origin).
+    /// `u`: Horizontal coordinate [0,1] around Y axis.
+    /// `v`: Vertical coordinate [0,1] from bottom (-Y) to top (+Y).
     pub fn get_sphere_uv(p: &Point3, u: &mut f64, v: &mut f64) {
         let theta = (-p.y()).acos();
         let phi = (-p.z()).atan2(p.x()) + PI;
@@ -75,9 +75,9 @@ impl Sphere {
 }
 
 impl Hittable for Sphere {
-    /// Determines if a ray hits the sphere between `ray_t` interval.
+    /// Checks if ray `r` hits the sphere within `ray_t` interval.
     ///
-    /// Updates `rec` with hit information if true.
+    /// If hit, updates `rec` with intersection details.
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
         let current_center = self.center.at(r.time());
         let oc = current_center - r.origin();
@@ -91,7 +91,7 @@ impl Hittable for Sphere {
         }
         let sqrtd = discriminant.sqrt();
 
-        // Find the nearest root within the acceptable range.
+        // Find nearest root in acceptable range.
         let mut root = (h - sqrtd) / a;
         if !ray_t.surrounds(root) {
             root = (h + sqrtd) / a;

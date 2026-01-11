@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use crate::{texture::*, vec3::Point3};
+use std::sync::Arc;
 
 use crate::{
     color::{self, Color},
@@ -12,8 +12,11 @@ use crate::{
 
 pub struct NoMaterial;
 
+/// Defines material behavior for scattering and emission.
+/// Default implementation has no scattering or emission.
 pub trait Material: Send + Sync {
-    /// Defines how rays scatter on the material. Default: no scatter.
+    /// Calculates scattered ray and attenuation color.
+    /// Returns true if scattering occurs, false otherwise.
     fn scatter(
         &self,
         r_in: &Ray,
@@ -24,7 +27,8 @@ pub trait Material: Send + Sync {
         false
     }
 
-    /// Emitted light by the material (default black/no emission).
+    /// Returns emitted light color at a point.
+    /// Default is black (no emission).
     fn emitted(&self, _u: f64, _v: f64, _p: &Point3) -> Color {
         Color::default()
     }
@@ -37,21 +41,21 @@ pub struct Lambertian {
 }
 
 impl Lambertian {
-    /// Create Lambertian with solid color albedo.
+    /// Creates Lambertian diffuse material with solid color.
     pub fn new(albedo: Color) -> Self {
         Lambertian {
             tex: Arc::new(SolidColor::new(&albedo)),
         }
     }
 
-    /// Create Lambertian with arbitrary texture.
+    /// Creates Lambertian diffuse material with arbitrary texture.
     pub fn new_(tex: Arc<dyn Texture + Send + Sync>) -> Self {
         Lambertian { tex }
     }
 }
 
 impl Material for Lambertian {
-    /// Diffuse scatter: random unit vector around normal.
+    /// Scatters ray randomly around surface normal for diffuse reflection.
     fn scatter(
         &self,
         r_in: &Ray,
@@ -61,7 +65,7 @@ impl Material for Lambertian {
     ) -> bool {
         let mut scatter_direction = rec.normal + Vec3::random_unit_vector();
 
-        // Catch near-zero scatter direction
+        // Avoid degenerate scatter direction near zero vector.
         if scatter_direction.near_zero() {
             scatter_direction = rec.normal;
         }
@@ -79,7 +83,7 @@ pub struct Metal {
 }
 
 impl Metal {
-    /// Create metal with color and fuzziness capped at 1.0.
+    /// Creates metal material with color and fuzziness (clamped to [0,1]).
     pub fn new(albedo: Color, fuzz: f64) -> Self {
         let fuzz = fuzz.min(1.0);
         Metal { albedo, fuzz }
@@ -87,7 +91,7 @@ impl Metal {
 }
 
 impl Material for Metal {
-    /// Scatter reflects the incoming ray plus fuzz noise.
+    /// Reflects ray with fuzz factor applied to scattered direction.
     fn scatter(
         &self,
         r_in: &Ray,
@@ -106,7 +110,7 @@ impl Material for Metal {
 }
 
 pub struct Dielectric {
-    /// Refractive index of the material
+    /// Refractive index of material.
     pub refraction_index: f64,
 }
 
@@ -115,7 +119,7 @@ impl Dielectric {
         Dielectric { refraction_index }
     }
 
-    /// Schlick's approximation for reflectance based on angle
+    /// Schlick's approximation for reflectance.
     fn reflectance(cosine: f64, refraction_index: f64) -> f64 {
         let r0 = {
             let r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
@@ -127,7 +131,7 @@ impl Dielectric {
 }
 
 impl Material for Dielectric {
-    /// Scatter ray by reflection or refraction depending on Fresnel effect and total internal reflection.
+    /// Scatters ray by reflection or refraction based on Fresnel effect.
     fn scatter(
         &self,
         r_in: &Ray,
@@ -150,9 +154,9 @@ impl Material for Dielectric {
 
         let cannot_refract = ri * sin_theta > 1.0;
 
-        let direction = if cannot_refract
-            || Dielectric::reflectance(cos_theta, ri) > rtweekend::random_double()
-        {
+        let reflect_prob = Dielectric::reflectance(cos_theta, ri);
+
+        let direction = if cannot_refract || reflect_prob > rtweekend::random_double() {
             Vec3::reflect(&unit_direction, &rec.normal)
         } else {
             Vec3::refract(&unit_direction, &rec.normal, ri)
@@ -181,7 +185,7 @@ impl DiffuseLight {
 }
 
 impl Material for DiffuseLight {
-    /// Emitted light from the surface (no scattering).
+    /// Returns emitted light color; does not scatter rays.
     fn emitted(&self, u: f64, v: f64, p: &Point3) -> Color {
         self.tex.value(u, v, p)
     }
@@ -204,7 +208,7 @@ impl Isotropic {
 }
 
 impl Material for Isotropic {
-    /// Scatter ray in a random direction (for volumes).
+    /// Scatters ray in random direction (used in volumetric media).
     fn scatter(
         &self,
         r_in: &Ray,
