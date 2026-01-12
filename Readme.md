@@ -1,6 +1,6 @@
 # Ray Tracing: The Next Week — Rust Implementation
 
-This branch implements *Ray Tracing: The Next Week* (Book 2, v4.0.2 — 2025-04-25) in Rust, including motion blur, BVH, texture mapping, Perlin noise, quadrilaterals, lights, instances, volumes, and new primitives. Outputs `.ppm` frames for viewing or video encoding.
+This branch contains an advanced CPU-based ray tracing renderer written in Rust. It supports motion blur, BVH acceleration, texture mapping, Perlin noise, quadrilaterals, emissive lights, instancing, participating media, and additional geometric primitives. The renderer outputs .ppm frames suitable for viewing or video encoding.
 
 ---
 
@@ -8,7 +8,7 @@ This branch implements *Ray Tracing: The Next Week* (Book 2, v4.0.2 — 2025-04-
 
 - Rust toolchain (`rustup.rs`)  
 - `rayon` crate (for parallel rendering)  
-- FFmpeg (optional, for video encoding)
+- FFmpeg (optional, for video creation)
 
 ---
 
