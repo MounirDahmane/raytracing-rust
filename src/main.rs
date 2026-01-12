@@ -230,7 +230,7 @@ fn main() {
     let mut cam = camera::Camera::init(
         1.0,
         1200, // higher resolution for better detail
-        5000, // samples per pixel 
+        10000, // samples per pixel 
         100,  // max bounce depth for complex lighting
         Color::new(0.0, 0.0, 0.0),
         false, // no DOF for sharpness
