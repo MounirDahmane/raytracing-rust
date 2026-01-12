@@ -2,32 +2,41 @@ use crate::aabb::AABB;
 use crate::material::Material;
 use crate::rtweekend::{self, INFINITY};
 use crate::vec3::{Point3, Vec3};
-use crate::{interval::Interval, Ray};
+use crate::{Ray, interval::Interval};
 use std::rc::Rc;
 
+/// Stores information about a ray-object hit.
 pub struct HitRecord {
+    /// Point of intersection.
     pub p: Point3,
+    /// Surface normal at the intersection.
     pub normal: Vec3,
+    /// Material at the intersection point.
     pub mat: Option<Rc<dyn Material>>,
-
+    /// Ray parameter at hit point.
     pub t: f64,
+    /// Texture coordinates u.
     pub u: f64,
+    /// Texture coordinates v.
     pub v: f64,
+    /// True if ray hits front face, false if inside surface.
     pub front_face: bool,
 }
-impl HitRecord {
-    pub fn set_face_normal(&mut self, r: &Ray, outward_normal: &Vec3) {
-        // Sets the hit record normal vector.
-        // NOTE: the parameter `outward_normal` is assumed to have unit length.
 
+impl HitRecord {
+    /// Sets the normal vector and front face flag depending on ray direction.
+    ///
+    /// `outward_normal` must be unit length.
+    pub fn set_face_normal(&mut self, r: &Ray, outward_normal: &Vec3) {
         self.front_face = Vec3::dot(&r.direction(), outward_normal) < 0.0;
-        if self.front_face == true {
-            self.normal = *outward_normal;
+        self.normal = if self.front_face {
+            *outward_normal
         } else {
-            self.normal = -*outward_normal;
-        }
+            -*outward_normal
+        };
     }
 }
+
 impl Default for HitRecord {
     fn default() -> Self {
         HitRecord {
@@ -42,84 +51,93 @@ impl Default for HitRecord {
     }
 }
 
+/// Trait for objects that can be intersected by rays.
 pub trait Hittable {
+    /// Checks for ray intersection within a given interval.
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool;
+
+    /// Returns the bounding box enclosing the object.
     fn bounding_box(&self) -> AABB;
+
+    /// Probability density function value for a given ray origin and direction.
+    /// Defaults to 0.0 (no importance sampling).
     fn pdf_value(&self, origin: &Point3, direction: &Vec3) -> f64 {
-        return 0.0;
+        0.0
     }
 
+    /// Returns a random direction vector for importance sampling.
+    /// Defaults to a fixed vector.
     fn random(&self, origin: &Point3) -> Vec3 {
-        return Vec3::new(1.0,0.0,0.0);
+        Vec3::new(1.0, 0.0, 0.0)
     }
 }
 
+/// Translates a hittable object by a given offset.
 pub struct Translate {
-    object: Rc<dyn Hittable>, 
+    object: Rc<dyn Hittable>,
     offset: Vec3,
     bbox: AABB,
 }
-impl Translate {
 
+impl Translate {
+    /// Creates a new translated hittable object.
     pub fn new(object: Rc<dyn Hittable>, offset: Vec3) -> Self {
         let bbox = object.bounding_box() + offset;
-
         Self {
             object,
             offset,
             bbox,
         }
     }
-
 }
-impl Hittable for Translate {
-    fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool{
-        // Move the ray backwards by the offset
-        let offset_r = Ray::new(r.origin() - self.offset, r.direction(), r.time());
 
-        // Determine whether an intersection exists along the offset ray (and if so, where)
-        if !self.object.hit(&offset_r, ray_t, rec){
+impl Hittable for Translate {
+    /// Checks for ray intersection, offsetting the ray by negative offset.
+    fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
+        let offset_r = Ray::new(r.origin() - self.offset, r.direction(), r.time());
+        if !self.object.hit(&offset_r, ray_t, rec) {
             return false;
         }
-
-        // Move the intersection point forwards by the offset
         rec.p += self.offset;
-
-        return true;
+        true
     }
-    fn bounding_box(&self) -> AABB{
+
+    /// Returns the translated bounding box.
+    fn bounding_box(&self) -> AABB {
         self.bbox
     }
 }
 
-
-
+/// Rotates a hittable object around the Y-axis by a specified angle.
 pub struct RotateY {
     object: Rc<dyn Hittable>,
     sin_theta: f64,
     cos_theta: f64,
     bbox: AABB,
 }
-impl RotateY{
+
+impl RotateY {
+    /// Creates a new Y-axis rotated hittable object with given angle in degrees.
     pub fn new(object: Rc<dyn Hittable>, angle: f64) -> Self {
         let radians = rtweekend::degrees_to_radians(angle);
         let sin_theta = radians.sin();
         let cos_theta = radians.cos();
-        
+
         let bbox = object.bounding_box();
-        
+
         let mut min = Point3::new(INFINITY, INFINITY, INFINITY);
         let mut max = Point3::new(-INFINITY, -INFINITY, -INFINITY);
 
+        // Compute rotated bounding box corners
         for i in 0..2 {
             for j in 0..2 {
                 for k in 0..2 {
-                    let x = (i as f64) * bbox.x.max + ((1-i) as f64) * bbox.x.min;
-                    let y = (j as f64) * bbox.y.max + ((1-j) as f64) * bbox.y.min;
-                    let z = (k as f64) * bbox.z.max + ((1-k) as f64) * bbox.z.min;
+                    let x = (i as f64) * bbox.x.max + ((1 - i) as f64) * bbox.x.min;
+                    let y = (j as f64) * bbox.y.max + ((1 - j) as f64) * bbox.y.min;
+                    let z = (k as f64) * bbox.z.max + ((1 - k) as f64) * bbox.z.min;
 
-                    let newx =  cos_theta*x + sin_theta*z;
-                    let newz = -sin_theta*x + cos_theta*z;
+                    let newx = cos_theta * x + sin_theta * z;
+                    let newz = -sin_theta * x + cos_theta * z;
 
                     let tester = Vec3::new(newx, y, newz);
 
@@ -132,55 +150,55 @@ impl RotateY{
         }
 
         let bbox = AABB::new_from_points(min, max);
-
-        Self { object, sin_theta, cos_theta, bbox }
+        Self {
+            object,
+            sin_theta,
+            cos_theta,
+            bbox,
+        }
     }
 }
 
 impl Hittable for RotateY {
-
-    fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool{
-
-        // Transform the ray from world space to object space.
-
+    /// Checks for ray intersection after rotating ray into object space.
+    fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
+        // Rotate ray origin and direction into object space
         let origin = Point3::new(
-            (self.cos_theta * r.origin().x()) - (self.sin_theta * r.origin().z()), 
+            self.cos_theta * r.origin().x() - self.sin_theta * r.origin().z(),
             r.origin().y(),
-            (self.sin_theta * r.origin().x()) + (self.cos_theta * r.origin().z())
+            self.sin_theta * r.origin().x() + self.cos_theta * r.origin().z(),
         );
 
         let direction = Vec3::new(
-            (self.cos_theta * r.direction().x()) - (self.sin_theta * r.direction().z()),
+            self.cos_theta * r.direction().x() - self.sin_theta * r.direction().z(),
             r.direction().y(),
-            (self.sin_theta * r.direction().x()) + (self.cos_theta * r.direction().z())
+            self.sin_theta * r.direction().x() + self.cos_theta * r.direction().z(),
         );
 
         let rotated_r = Ray::new(origin, direction, r.time());
 
-        // Determine whether an intersection exists in object space (and if so, where).
-
-        if !self.object.hit(&rotated_r, ray_t, rec){
+        if !self.object.hit(&rotated_r, ray_t, rec) {
             return false;
         }
 
-        // Transform the intersection from object space back to world space.
-
+        // Rotate intersection point and normal back to world space
         rec.p = Point3::new(
-            (self.cos_theta * rec.p.x()) + (self.sin_theta * rec.p.z()),
+            self.cos_theta * rec.p.x() + self.sin_theta * rec.p.z(),
             rec.p.y(),
-            (-self.sin_theta * rec.p.x()) + (self.cos_theta * rec.p.z())
+            -self.sin_theta * rec.p.x() + self.cos_theta * rec.p.z(),
         );
 
         rec.normal = Vec3::new(
-            (self.cos_theta * rec.normal.x()) + (self.sin_theta * rec.normal.z()),
+            self.cos_theta * rec.normal.x() + self.sin_theta * rec.normal.z(),
             rec.normal.y(),
-            (-self.sin_theta * rec.normal.x()) + (self.cos_theta * rec.normal.z())
+            -self.sin_theta * rec.normal.x() + self.cos_theta * rec.normal.z(),
         );
 
-        return true;
+        true
     }
 
-    fn bounding_box(&self) -> AABB{
-        return self.bbox;
+    /// Returns the bounding box of the rotated object.
+    fn bounding_box(&self) -> AABB {
+        self.bbox
     }
 }

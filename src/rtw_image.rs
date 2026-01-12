@@ -1,7 +1,8 @@
-use image::io::Reader as ImageReader;
 use image::DynamicImage;
+use image::io::Reader as ImageReader;
 use std::path::{Path, PathBuf};
 
+/// Converts an sRGB channel value to linear space.
 fn srgb_to_linear_channel(c: f32) -> f32 {
     if c <= 0.04045 {
         c / 12.92
@@ -10,6 +11,7 @@ fn srgb_to_linear_channel(c: f32) -> f32 {
     }
 }
 
+/// Converts a floating point value in [0,1] to a byte in [0,255].
 fn float_to_byte(value: f32) -> u8 {
     if value <= 0.0 {
         0
@@ -20,6 +22,7 @@ fn float_to_byte(value: f32) -> u8 {
     }
 }
 
+/// Clamps an i32 value to the range [low, high).
 fn clamp_i32(x: i32, low: i32, high: i32) -> i32 {
     if x < low {
         low
@@ -30,8 +33,9 @@ fn clamp_i32(x: i32, low: i32, high: i32) -> i32 {
     }
 }
 
+/// Struct representing an image with linear float data and byte data.
 pub struct RtwImage {
-    fdata: Option<Vec<f32>>, // linear floats r,g,b,...
+    fdata: Option<Vec<f32>>, // linear floats in RGB order
     bdata: Option<Vec<u8>>,  // bytes built from fdata
     w: usize,
     h: usize,
@@ -39,6 +43,7 @@ pub struct RtwImage {
 }
 
 impl RtwImage {
+    /// Creates a new, empty image.
     pub fn new() -> Self {
         Self {
             fdata: None,
@@ -49,18 +54,19 @@ impl RtwImage {
         }
     }
 
+    /// Creates an image and attempts to load it from a filename or from the "images" folder.
     pub fn with_filename(filename: &str) -> Self {
         let mut img = Self::new();
         let p1 = PathBuf::from(filename);
         let p2 = PathBuf::from("images").join(filename);
 
         if img.load(&p1).is_err() {
-            let _ = img.load(&p2); // ignore error; method will leave img empty if fails
+            let _ = img.load(&p2); // ignore error; image stays empty if loading fails
         }
         img
     }
 
-    /// Load a single path, build fdata (linear floats) and bdata (bytes).
+    /// Loads an image from the given path, converting to linear floats and building byte data.
     pub fn load<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Box<dyn std::error::Error>> {
         let dynimg: DynamicImage = ImageReader::open(&path)?.decode()?;
         let rgb8 = dynimg.to_rgb8();
@@ -84,7 +90,7 @@ impl RtwImage {
         }
         self.fdata = Some(fvec);
 
-        // build bdata from fdata using the same conversion rule
+        // Build byte data from linear floats
         let f = self.fdata.as_ref().unwrap();
         let mut bvec = Vec::with_capacity(w * h * 3);
         for &v in f.iter() {
@@ -95,22 +101,19 @@ impl RtwImage {
         Ok(())
     }
 
+    /// Returns the image width in pixels, or 0 if no image is loaded.
     pub fn width(&self) -> usize {
-        if self.fdata.is_some() {
-            self.w
-        } else {
-            0
-        }
-    }
-    pub fn height(&self) -> usize {
-        if self.fdata.is_some() {
-            self.h
-        } else {
-            0
-        }
+        if self.fdata.is_some() { self.w } else { 0 }
     }
 
-    /// Returns [u8;3] RGB for clamped pixel (magenta if no image)
+    /// Returns the image height in pixels, or 0 if no image is loaded.
+    pub fn height(&self) -> usize {
+        if self.fdata.is_some() { self.h } else { 0 }
+    }
+
+    /// Returns the RGB byte values of the pixel at `(x, y)`, clamping coordinates.
+    ///
+    /// Returns magenta `[255, 0, 255]` if no image data is available.
     pub fn pixel_data(&self, x: i32, y: i32) -> [u8; 3] {
         const MAGENTA: [u8; 3] = [255, 0, 255];
         if self.bdata.is_none() || self.w == 0 || self.h == 0 {
@@ -123,7 +126,9 @@ impl RtwImage {
         [b[idx], b[idx + 1], b[idx + 2]]
     }
 
-    /// Returns linear [f32;3] RGB for clamped pixel (magenta in linear if no image)
+    /// Returns the linear RGB float values of the pixel at `(x, y)`, clamping coordinates.
+    ///
+    /// Returns magenta `[1.0, 0.0, 1.0]` if no image data is available.
     pub fn pixel_linear(&self, x: i32, y: i32) -> [f32; 3] {
         const MAGENTA_F: [f32; 3] = [1.0, 0.0, 1.0];
         if self.fdata.is_none() || self.w == 0 || self.h == 0 {

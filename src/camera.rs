@@ -1,41 +1,64 @@
 use crate::{
-    camera, color::{self, Color, write_color}, hittable::{HitRecord, Hittable}, interval::Interval, material::*, pdf::{CosinePdf, HittablePdf, MixtruePdf, Pdf}, ray::Ray, rtweekend::{self, *}, vec3::{Point3, Vec3}
+    color::{self, Color},
+    hittable::{HitRecord, Hittable},
+    interval::Interval,
+    material::*,
+    pdf::{HittablePdf, MixturePdf, Pdf},
+    ray::Ray,
+    rtweekend::{self, *},
+    vec3::{Point3, Vec3},
 };
 
-use indicatif::ProgressBar;
 use crate::Rc;
+use indicatif::ProgressBar;
 use std::io::{self, BufWriter, Write};
+
+/// Camera struct containing parameters for rendering a 3D scene.
 pub struct Camera {
-    pub aspect_ratio: f64,      // Ratio of image width over height
-    pub img_width: u32,         // Rendered image width in pixel count
-    pub samples_per_pixel: u32, // Count of random samples for each pixel
-    pub max_depth: u32,         // Maximum number of ray bounces into scene
-    pub background: Color,      // Scene background color
+    /// Ratio of image width over height
+    pub aspect_ratio: f64,
+    /// Rendered image width in pixels
+    pub img_width: u32,
+    /// Number of stochastic samples per pixel
+    pub samples_per_pixel: u32,
+    /// Maximum number of ray bounces allowed
+    pub max_depth: u32,
+    /// Background color of the scene
+    pub background: Color,
+    /// Whether to use a gradient sky as background
     pub use_gradient_sky: bool,
-    pub vfov: f64,              // Vertical view angle (field of view)
-    pub lookfrom: Point3,       // Point camera is looking from
-    pub lookat: Point3,         // Point camera is looking at
-    pub vup: Vec3,              // Camera-relative "up" direction
+    /// Vertical field of view (in degrees)
+    pub vfov: f64,
+    /// Camera position
+    pub lookfrom: Point3,
+    /// Target point the camera looks at
+    pub lookat: Point3,
+    /// "Up" direction vector relative to camera
+    pub vup: Vec3,
 
-    pub defocus_angle: f64, // Variation angle of rays through each pixel
-    pub focus_dist: f64,    // Distance from camera lookfrom point to plane of perfect focus
+    /// Variation angle for depth of field (defocus blur)
+    pub defocus_angle: f64,
+    /// Distance to plane of perfect focus
+    pub focus_dist: f64,
 
-    defocus_disk_u: Vec3, // Defocus disk horizontal radius
-    defocus_disk_v: Vec3, // Defocus disk vertical radius
+    defocus_disk_u: Vec3,
+    defocus_disk_v: Vec3,
 
     image_height: u32,
-    pixel_samples_scale: f64, // Color scale factor for a sum of pixel samples
-    sqrt_spp: i32,             // Square root of number of samples per pixel
-    recip_sqrt_spp: f64,       // 1 / sqrt_spp
+    pixel_samples_scale: f64,
+    sqrt_spp: i32,
+    recip_sqrt_spp: f64,
     center: Point3,
     pixel_delta_u: Vec3,
     pixel_delta_v: Vec3,
     pixel00_loc: Vec3,
     u: Vec3,
     v: Vec3,
-    w: Vec3, // Camera frame basis vectors
+    w: Vec3, // Camera coordinate frame basis vectors
 }
+
 impl Camera {
+    /// Initialize a new camera with given parameters and compute derived values.
     pub fn init(
         aspect_ratio: f64,
         img_width: u32,
@@ -57,10 +80,10 @@ impl Camera {
             background,
             use_gradient_sky,
             vfov,
-            lookfrom: lookfrom,
-            lookat: lookat,
-            vup: vup,
-            defocus_angle: defocus_angle,
+            lookfrom,
+            lookat,
+            vup,
+            defocus_angle,
             focus_dist: 10.0,
             defocus_disk_u: Vec3::default(),
             defocus_disk_v: Vec3::default(),
@@ -77,13 +100,14 @@ impl Camera {
             v: Vec3::default(),
             w: Vec3::default(),
         };
-        camera.initialize(); // Compute derived data here
+        camera.initialize();
         camera
     }
 }
 
-// public
+// Public methods
 impl Camera {
+    /// Render the scene described by `world` and `lights` hittables.
     pub fn render(&mut self, world: &dyn Hittable, lights: Rc<dyn Hittable>) {
         let stdout = io::stdout();
         let mut out = BufWriter::new(stdout.lock());
@@ -96,15 +120,9 @@ impl Camera {
 
         for j in 0..self.image_height {
             for i in 0..self.img_width {
-                let mut pixel_color = color::Color::new(0.0, 0.0, 0.0);
-                //for _ in 0..self.samples_per_pixel {
-                //    // For each pixel, take multiple stochastic samples (SSAA) and average their colors
-                //    let r = self.get_ray(i, j);
-                //    pixel_color += self.ray_color(&r, self.max_depth, world);
-                //}
-                //pixel_color *= self.pixel_samples_scale;
+                let mut pixel_color = Color::new(0.0, 0.0, 0.0);
 
-                //color::write_color(&mut out, &pixel_color).unwrap();
+                // Stratified sampling over sqrt(spp) x sqrt(spp) subpixels
                 for s_j in 0..self.sqrt_spp {
                     for s_i in 0..self.sqrt_spp {
                         let r = self.get_ray(i, j, s_i, s_j);
@@ -120,75 +138,64 @@ impl Camera {
         out.flush().unwrap();
     }
 }
-// private
+
+// Private methods
 impl Camera {
+    /// Compute derived camera parameters based on initial settings.
     fn initialize(&mut self) {
-        // Image
-
-        // Calculate the image height, and ensure that it's at least 1.
         self.image_height = ((self.img_width as f64) / self.aspect_ratio) as u32;
-
         if self.image_height < 1 {
             self.image_height = 1;
-        } else {
-            self.image_height = self.image_height;
         }
 
-        //self.pixel_samples_scale = 1.0 / (self.samples_per_pixel as f64); // Color scale factor for a sum of pixel samples
-        
         self.sqrt_spp = (self.samples_per_pixel as f64).sqrt() as i32;
         self.pixel_samples_scale = 1.0 / ((self.sqrt_spp * self.sqrt_spp) as f64);
         self.recip_sqrt_spp = 1.0 / (self.sqrt_spp as f64);
 
-        // Camera
-        self.center = self.lookfrom; // eye point
-
-        //let focal_length = (self.lookfrom - self.lookat).length(); //[ CAMERA ] ---- distance ---- [ VIRTUAL SCREEN ]
+        self.center = self.lookfrom;
 
         let theta = rtweekend::degrees_to_radians(self.vfov);
         let h = (theta / 2.0).tan();
 
-        // Viewport width less than one are ok since they are real valued.
         let viewport_height = 2.0 * h * self.focus_dist;
         let viewport_width = viewport_height * (self.img_width as f64) / (self.image_height as f64);
 
-        // Calculate the u,v,w unit basis vectors for the camera coordinate frame.
         self.w = Vec3::unit_vector(self.lookfrom - self.lookat);
         self.u = Vec3::unit_vector(Vec3::cross(&self.vup, &self.w));
         self.v = Vec3::cross(&self.w, &self.u);
 
-        // Calculate the vectors across the horizontal and down the vertical viewport edges.
+        let viewport_u = viewport_width * self.u;
+        let viewport_v = viewport_height * -self.v;
 
-        let viewport_u = viewport_width * self.u; // Vector across viewport horizontal edge
-        let viewport_v = viewport_height * -self.v; // Vector down viewport vertical edge
-
-        // Calculate the horizontal and vertical delta vectors from pixel to pixel.
         self.pixel_delta_u = viewport_u / (self.img_width as f64);
         self.pixel_delta_v = viewport_v / (self.image_height as f64);
 
-        // Calculate the location of the upper left pixel.
         let viewport_upper_left =
             self.center - (self.focus_dist * self.w) - viewport_u / 2.0 - viewport_v / 2.0;
         self.pixel00_loc = viewport_upper_left + 0.5 * (self.pixel_delta_u + self.pixel_delta_v);
 
-        // Calculate the camera defocus disk basis vectors.
         let defocus_radius =
             self.focus_dist * rtweekend::degrees_to_radians(self.defocus_angle / 2.0).tan();
         self.defocus_disk_u = self.u * defocus_radius;
         self.defocus_disk_v = self.v * defocus_radius;
     }
-    fn ray_color(&self, r: &Ray, depth: u32, world: &dyn Hittable, lights: Rc<dyn Hittable>) -> Color {
-        // If we've exceeded the ray bounce limit, no more light is gathered.
+
+    /// Compute color for a ray by tracing through the scene recursively.
+    fn ray_color(
+        &self,
+        r: &Ray,
+        depth: u32,
+        world: &dyn Hittable,
+        lights: Rc<dyn Hittable>,
+    ) -> Color {
         if depth == 0 {
             return Color::new(0.0, 0.0, 0.0);
         }
 
         let mut rec = HitRecord::default();
 
-        // If the ray hits nothing, return the background color.
         if !world.hit(r, Interval::new(0.001, f64::INFINITY), &mut rec) {
-            //return self.get_background_color(r);
-            return  self.background;
+            return self.background;
         }
 
         let mut srec = ScatterRecord::new();
@@ -198,45 +205,39 @@ impl Camera {
         } else {
             Color::new(0.0, 0.0, 0.0)
         };
-        
-        // If there's no material, or scatter returns false, return emission.
+
         if let Some(mat) = &rec.mat {
             if !mat.scatter(r, &rec, &mut srec) {
                 return color_from_emission;
             }
         } else {
-            // No material attached — behave like C++ version and return emission.
             return color_from_emission;
         }
 
         if srec.skip_pdf {
-            return srec.attenuation * self.ray_color(&srec.skip_pdf_ray, depth-1, world, lights.clone());
+            return srec.attenuation
+                * self.ray_color(&srec.skip_pdf_ray, depth - 1, world, lights.clone());
         }
 
         let light_ptr = Rc::new(HittablePdf::new(lights.clone(), &rec.p));
-        
-        let p = MixtruePdf::new(
-                light_ptr,
-                srec.pdf_ptr.as_ref().unwrap().clone(),
-            );
+        let p = MixturePdf::new(light_ptr, srec.pdf_ptr.as_ref().unwrap().clone());
 
         let scattered = Ray::new(rec.p, p.generate(), r.time());
         let pdf_value = p.value(&scattered.direction());
 
         let scattering_pdf = if let Some(mat) = &rec.mat {
             mat.scattering_pdf(r, &rec, &scattered)
-        } 
-        else {
-             0.0
+        } else {
+            0.0
         };
 
-        let sample_color = self.ray_color(&scattered, depth-1, world, lights.clone());
-
+        let sample_color = self.ray_color(&scattered, depth - 1, world, lights.clone());
         let color_from_scatter = (srec.attenuation * scattering_pdf * sample_color) / pdf_value;
 
         color_from_emission + color_from_scatter
-    }  
+    }
 
+    /// Returns the background color based on the sky gradient setting.
     fn get_background_color(&self, r: &Ray) -> Color {
         if self.use_gradient_sky {
             let unit_direction = Vec3::unit_vector(r.direction());
@@ -247,15 +248,9 @@ impl Camera {
             self.background
         }
     }
+
+    /// Returns a camera ray through pixel (i, j) with subpixel offsets (s_i, s_j).
     fn get_ray(&self, i: u32, j: u32, s_i: i32, s_j: i32) -> Ray {
-        // Construct a camera ray originating from the defocus disk and directed at a randomly
-        // sampled point around the pixel location i, j.
-
-        // Generate a random offset within the pixel area to perform supersampling (SSAA).
-        // This stochastic sampling reduces aliasing by averaging multiple rays per pixel
-        // with slightly jittered positions instead of just shooting through the pixel center.
-
-        //let offset = Camera::sample_square();
         let offset = Camera::sample_square_stratified(self, s_i, s_j);
 
         let pixel_sample = self.pixel00_loc
@@ -272,22 +267,23 @@ impl Camera {
 
         Ray::new(ray_origin, ray_direction, ray_time)
     }
+
+    /// Samples a random point within the defocus disk for depth-of-field effects.
     fn defocus_disk_sample(&self) -> Point3 {
-        // Returns a random point in the camera defocus disk.
         let p = Vec3::random_in_unit_disk();
-        return self.center + (p[0] * self.defocus_disk_u) + (p[1] * self.defocus_disk_v);
+        self.center + (p[0] * self.defocus_disk_u) + (p[1] * self.defocus_disk_v)
     }
+
+    /// Returns a random point in the unit square centered at (0,0).
     fn sample_square() -> Vec3 {
-        // Returns the vector to a random point in the [-.5,-.5]-[+.5,+.5] unit square.
         Vec3::new(random_double() - 0.5, random_double() - 0.5, 0.0)
     }
+
+    /// Returns a stratified random point in the sub-pixel grid cell specified by s_i, s_j.
     fn sample_square_stratified(&self, s_i: i32, s_j: i32) -> Vec3 {
-        // Returns the vector to a random point in the square sub-pixel specified by grid
-        // indices s_i and s_j, for an idealized unit square pixel [-.5,-.5] to [+.5,+.5].
-        let px = (((s_i as f64)+ random_double()) * self.recip_sqrt_spp) - 0.5;
-        let py = (((s_j as f64)+ random_double()) * self.recip_sqrt_spp) - 0.5;
+        let px = (((s_i as f64) + random_double()) * self.recip_sqrt_spp) - 0.5;
+        let py = (((s_j as f64) + random_double()) * self.recip_sqrt_spp) - 0.5;
 
-        return Vec3::new(px, py, 0.0);
+        Vec3::new(px, py, 0.0)
     }
-
 }

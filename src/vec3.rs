@@ -3,27 +3,39 @@ use std::fmt::Display;
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
 };
-use std::vec;
 
+/// A 3D vector with `f64` components.
+///
+/// This type is used for both geometric vectors and points in 3D space.
 #[derive(Debug, Copy, Clone)]
 pub struct Vec3 {
     pub vector: [f64; 3],
 }
 
+/// A point in 3D space.
+///
+/// This is a semantic alias of `Vec3` used to distinguish positions from directions.
 pub type Point3 = Vec3;
-//constructors
+
+//
+// Constructors
+//
 impl Vec3 {
+    /// Creates a vector from a `(x, y, z)` tuple.
     pub fn new_from_tuple(tuple: (f64, f64, f64)) -> Self {
         Self {
             vector: [tuple.0, tuple.1, tuple.2],
         }
     }
+
+    /// Creates a vector from explicit `x`, `y`, and `z` components.
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { vector: [x, y, z] }
     }
 }
 
 impl Default for Vec3 {
+    /// Returns the zero vector `(0, 0, 0)`.
     fn default() -> Self {
         Vec3 {
             vector: [0.0, 0.0, 0.0],
@@ -31,7 +43,9 @@ impl Default for Vec3 {
     }
 }
 
-//position
+//
+// Component accessors
+//
 impl Vec3 {
     #[inline(always)]
     pub fn x(&self) -> f64 {
@@ -49,8 +63,11 @@ impl Vec3 {
     }
 }
 
-//utilitis
+//
+// Vector operations
+//
 impl Vec3 {
+    /// Returns the squared Euclidean length of the vector.
     #[inline]
     pub fn length_squared(&self) -> f64 {
         self.vector[0] * self.vector[0]
@@ -58,11 +75,13 @@ impl Vec3 {
             + self.vector[2] * self.vector[2]
     }
 
+    /// Returns the Euclidean length of the vector.
     #[inline]
     pub fn length(&self) -> f64 {
         self.length_squared().sqrt()
     }
 
+    /// Computes the dot product between two vectors.
     #[inline]
     pub fn dot(&self, other: &Vec3) -> f64 {
         self.vector[0] * other.vector[0]
@@ -70,6 +89,7 @@ impl Vec3 {
             + self.vector[2] * other.vector[2]
     }
 
+    /// Computes the cross product between two vectors.
     pub fn cross(&self, other: &Vec3) -> Vec3 {
         Vec3 {
             vector: [
@@ -80,15 +100,19 @@ impl Vec3 {
         }
     }
 
+    /// Returns a unit-length version of the given vector.
+    ///
+    /// If the input vector is zero, the zero vector is returned.
     #[inline]
     pub fn unit_vector(v: Vec3) -> Vec3 {
         if v.length() == 0.0 {
-            return Vec3::default();
+            Vec3::default()
         } else {
             v / v.length()
         }
     }
 
+    /// Returns a random vector with each component in `[0, 1)`.
     pub fn random() -> Self {
         Self::new(
             rtweekend::random_double(),
@@ -97,6 +121,7 @@ impl Vec3 {
         )
     }
 
+    /// Returns a random vector with each component in `[min, max)`.
     pub fn random_range(min: f64, max: f64) -> Self {
         Self::new(
             rtweekend::random_double_range(min, max),
@@ -105,8 +130,8 @@ impl Vec3 {
         )
     }
 
+    /// Returns a uniformly distributed random unit vector using rejection sampling.
     #[inline]
-    // rejection method
     pub fn random_unit_vector() -> Self {
         loop {
             let p = Vec3::random_range(-1.0, 1.0);
@@ -117,22 +142,24 @@ impl Vec3 {
             }
         }
     }
-    
+
+    /// Returns a cosine-weighted random direction in the hemisphere aligned with +Z.
     #[inline]
-    pub fn random_cosine_direction() -> Self{
+    pub fn random_cosine_direction() -> Self {
         let r1 = rtweekend::random_double();
         let r2 = rtweekend::random_double();
 
         let phi = 2.0 * rtweekend::PI * r1;
-        let x = (phi).cos() * (r2).sqrt();
-        let y = (phi).sin() * (r2).sqrt();
+        let x = phi.cos() * r2.sqrt();
+        let y = phi.sin() * r2.sqrt();
         let z = (1.0 - r2).sqrt();
 
-        return Vec3::new(x, y, z);
+        Vec3::new(x, y, z)
     }
 
+    /// Returns a random point inside the unit disk in the XY plane.
     #[inline]
-    pub fn random_in_unit_disk() -> Self {  // A Las Vegas algorithm
+    pub fn random_in_unit_disk() -> Self {
         loop {
             let p = Vec3::new(
                 rtweekend::random_double_range(-1.0, 1.0),
@@ -145,42 +172,43 @@ impl Vec3 {
         }
     }
 
-    
+    /// Returns a random unit vector constrained to the hemisphere defined by `normal`.
     #[inline]
     pub fn random_on_hemisphere(normal: &Vec3) -> Self {
         let on_unit_sphere = Vec3::random_unit_vector();
         if Vec3::dot(&on_unit_sphere, normal) > 0.0 {
-            return on_unit_sphere;
+            on_unit_sphere
         } else {
-            return -on_unit_sphere;
+            -on_unit_sphere
         }
     }
 
+    /// Returns `true` if the vector is close to zero in all dimensions.
     #[inline]
     pub fn near_zero(&self) -> bool {
-        // Return true if the vector is close to zero in all dimensions.
         let s = 1e-8;
-        return self.vector[0] < s && self.vector[1] < s && self.vector[2] < s;
+        self.vector[0] < s && self.vector[1] < s && self.vector[2] < s
     }
 
+    /// Reflects a vector about a normal.
     #[inline]
     pub fn reflect(v: &Vec3, n: &Vec3) -> Self {
         *v - 2.0 * v.dot(n) * *n
     }
 
+    /// Computes the refracted ray according to Snell's law.
     #[inline]
-    // Snell's Law
     pub fn refract(uv: &Vec3, n: &Vec3, etai_over_etat: f64) -> Self {
         let cos_theta = (-uv.dot(n)).min(1.0);
         let r_out_perp = etai_over_etat * (*uv + cos_theta * *n);
         let r_out_parallel = -((1.0 - r_out_perp.length_squared()).abs().sqrt()) * *n;
-
-        return r_out_perp + r_out_parallel;
+        r_out_perp + r_out_parallel
     }
 }
 
-//operations
-
+//
+// Formatting
+//
 impl Display for Vec3 {
     #[inline(always)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -192,6 +220,9 @@ impl Display for Vec3 {
     }
 }
 
+//
+// Arithmetic operators
+//
 impl Add for Vec3 {
     type Output = Vec3;
 
@@ -310,6 +341,9 @@ impl DivAssign<f64> for Vec3 {
     }
 }
 
+//
+// Indexing
+//
 impl Index<usize> for Vec3 {
     type Output = f64;
 
@@ -334,6 +368,9 @@ impl IndexMut<usize> for Vec3 {
     }
 }
 
+//
+// Equality
+//
 impl PartialEq for Vec3 {
     fn eq(&self, other: &Vec3) -> bool {
         self.vector[0] == other.vector[0]

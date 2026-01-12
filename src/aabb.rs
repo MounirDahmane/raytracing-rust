@@ -4,6 +4,7 @@ use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
 use std::ops::Add;
 
+/// Axis-Aligned Bounding Box (AABB) represented by intervals along x, y, and z axes.
 #[derive(Copy, Clone)]
 pub struct AABB {
     pub x: Interval,
@@ -12,7 +13,7 @@ pub struct AABB {
 }
 
 impl AABB {
-    // The default AABB is empty, since intervals are empty by default.
+    /// Creates a new empty AABB (all intervals empty).
     pub fn new_empty() -> Self {
         Self {
             x: Interval::default(),
@@ -21,6 +22,7 @@ impl AABB {
         }
     }
 
+    /// Creates a new AABB with given intervals on each axis, padded to minimum size.
     pub fn new(x: Interval, y: Interval, z: Interval) -> Self {
         let mut x = x;
         let mut y = y;
@@ -31,10 +33,9 @@ impl AABB {
         Self { x, y, z }
     }
 
+    /// Creates an AABB from two points treated as opposite corners.
+    /// Ensures the intervals are correctly ordered.
     pub fn new_from_points(a: Point3, b: Point3) -> Self {
-        // Treat the two points a and b as extrema for the bounding box, so we don't require a
-        // particular minimum/maximum coordinate order.
-
         let mut x = if a[0] <= b[0] {
             Interval::new(a[0], b[0])
         } else {
@@ -58,6 +59,7 @@ impl AABB {
         Self { x, y, z }
     }
 
+    /// Creates an AABB that encloses two AABBs.
     pub fn new_(box0: AABB, box1: AABB) -> Self {
         Self {
             x: Interval::new_(box0.x, box1.x),
@@ -68,47 +70,42 @@ impl AABB {
 }
 
 impl AABB {
+    /// Returns the index (0=x,1=y,2=z) of the longest axis of the bounding box.
     pub fn longest_axis(&self) -> i8 {
-        // Returns the index of the longest axis of the bounding box.
         if self.x.size() > self.y.size() {
-            if self.x.size() > self.z.size() {
-                return 0;
-            } else {
-                return 2;
-            }
+            if self.x.size() > self.z.size() { 0 } else { 2 }
         } else {
-            if self.y.size() > self.z.size() {
-                return 1;
-            } else {
-                return 2;
-            }
+            if self.y.size() > self.z.size() { 1 } else { 2 }
         }
-    }
-    pub fn axis_interval(&self, n: i8) -> &Interval {
-        if n == 1 {
-            return &self.y;
-        }
-        if n == 2 {
-            return &self.z;
-        }
-        return &self.x;
     }
 
+    /// Returns a reference to the interval along axis `n` (0=x,1=y,2=z).
+    pub fn axis_interval(&self, n: i8) -> &Interval {
+        if n == 1 {
+            &self.y
+        } else if n == 2 {
+            &self.z
+        } else {
+            &self.x
+        }
+    }
+
+    /// An empty bounding box constant.
     pub const EMPTY: AABB = AABB {
         x: Interval::EMPTY,
         y: Interval::EMPTY,
         z: Interval::EMPTY,
     };
 
+    /// A bounding box covering the entire universe (infinite intervals).
     pub const UNIVERSE: AABB = AABB {
         x: Interval::UNIVERSE,
         y: Interval::UNIVERSE,
         z: Interval::UNIVERSE,
     };
 
+    /// Pads each interval to a minimum size delta if smaller.
     fn pad_to_minimums(x: &mut Interval, y: &mut Interval, z: &mut Interval) {
-        // Adjust the AABB so that no side is narrower than some delta, padding if necessary.
-
         let delta = 0.0001;
 
         if x.size() < delta {
@@ -126,6 +123,7 @@ impl AABB {
 impl Add<Vec3> for AABB {
     type Output = AABB;
 
+    /// Translates the AABB by a vector offset.
     fn add(self, offset: Vec3) -> AABB {
         AABB::new(
             self.x + offset.x(),
@@ -138,19 +136,18 @@ impl Add<Vec3> for AABB {
 impl Add<AABB> for Vec3 {
     type Output = AABB;
 
+    /// Translates the given AABB by this vector.
     fn add(self, bbox: AABB) -> AABB {
         bbox + self
     }
 }
 
-
-
 impl Hittable for AABB {
-    fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool {
+    /// Checks if a ray hits the bounding box within the given `ray_t` interval.
+    /// Updates `ray_t` to the overlapping intersection interval.
+    fn hit(&self, r: &Ray, mut ray_t: Interval, _rec: &mut HitRecord) -> bool {
         let ray_orig: Point3 = r.origin();
         let ray_dir = r.direction();
-
-        let mut ray_t = ray_t;
 
         for axis in 0..3 {
             let ax = self.axis_interval(axis);
@@ -179,9 +176,10 @@ impl Hittable for AABB {
                 return false;
             }
         }
-        return true;
+        true
     }
 
+    /// Returns an empty bounding box (this may be a placeholder).
     fn bounding_box(&self) -> AABB {
         AABB::new_empty()
     }
