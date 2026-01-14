@@ -3,7 +3,7 @@ use rand::{Rng, rng};
 // Infinity constant
 pub const INFINITY: f64 = f64::INFINITY;
 // Pi constant
-pub const PI: f64 = 3.1415926535897932385;
+pub const PI: f64 = 3.141_592_653_589_793;
 
 #[inline]
 pub fn degrees_to_radians(degrees: f64) -> f64 {
