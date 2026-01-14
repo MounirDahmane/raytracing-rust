@@ -1,2 +1,2 @@
 # Ignore Cargo build output
-/target/
+./target
