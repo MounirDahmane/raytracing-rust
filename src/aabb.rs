@@ -5,13 +5,13 @@ use crate::vec3::{Point3, Vec3};
 use std::ops::Add;
 
 #[derive(Copy, Clone)]
-pub struct AABB {
+pub struct Aabb {
     pub x: Interval,
     pub y: Interval,
     pub z: Interval,
 }
 
-impl AABB {
+impl Aabb {
     /// Creates an empty bounding box with empty intervals.
     pub fn new_empty() -> Self {
         Self {
@@ -27,12 +27,12 @@ impl AABB {
         let mut y = y;
         let mut z = z;
 
-        AABB::pad_to_minimums(&mut x, &mut y, &mut z);
+        Aabb::pad_to_minimums(&mut x, &mut y, &mut z);
 
         Self { x, y, z }
     }
 
-    /// Creates an AABB covering two points.
+    /// Creates an Aabb covering two points.
     pub fn new_from_points(a: Point3, b: Point3) -> Self {
         let mut x = if a[0] <= b[0] {
             Interval::new(a[0], b[0])
@@ -52,13 +52,13 @@ impl AABB {
             Interval::new(b[2], a[2])
         };
 
-        AABB::pad_to_minimums(&mut x, &mut y, &mut z);
+        Aabb::pad_to_minimums(&mut x, &mut y, &mut z);
 
         Self { x, y, z }
     }
 
-    /// Creates an AABB that encloses two bounding boxes.
-    pub fn new_(box0: AABB, box1: AABB) -> Self {
+    /// Creates an Aabb that encloses two bounding boxes.
+    pub fn new_(box0: Aabb, box1: Aabb) -> Self {
         Self {
             x: Interval::new_(box0.x, box1.x),
             y: Interval::new_(box0.y, box1.y),
@@ -69,17 +69,11 @@ impl AABB {
     /// Returns the index of the longest axis: 0=x, 1=y, 2=z.
     pub fn longest_axis(&self) -> i8 {
         if self.x.size() > self.y.size() {
-            if self.x.size() > self.z.size() {
-                0
-            } else {
-                2
-            }
+            if self.x.size() > self.z.size() { 0 } else { 2 }
+        } else if self.y.size() > self.z.size() {
+            1
         } else {
-            if self.y.size() > self.z.size() {
-                1
-            } else {
-                2
-            }
+            2
         }
     }
 
@@ -92,13 +86,13 @@ impl AABB {
         }
     }
 
-    pub const EMPTY: AABB = AABB {
+    pub const EMPTY: Aabb = Aabb {
         x: Interval::EMPTY,
         y: Interval::EMPTY,
         z: Interval::EMPTY,
     };
 
-    pub const UNIVERSE: AABB = AABB {
+    pub const UNIVERSE: Aabb = Aabb {
         x: Interval::UNIVERSE,
         y: Interval::UNIVERSE,
         z: Interval::UNIVERSE,
@@ -120,12 +114,12 @@ impl AABB {
     }
 }
 
-// Translate AABB by a vector offset.
-impl Add<Vec3> for AABB {
-    type Output = AABB;
+// Translate Aabb by a vector offset.
+impl Add<Vec3> for Aabb {
+    type Output = Aabb;
 
-    fn add(self, offset: Vec3) -> AABB {
-        AABB::new(
+    fn add(self, offset: Vec3) -> Aabb {
+        Aabb::new(
             self.x + offset.x(),
             self.y + offset.y(),
             self.z + offset.z(),
@@ -133,16 +127,16 @@ impl Add<Vec3> for AABB {
     }
 }
 
-// Delegate adding an AABB to a Vec3 to Vec3 + AABB.
-impl Add<AABB> for Vec3 {
-    type Output = AABB;
+// Delegate adding an Aabb to a Vec3 to Vec3 + Aabb.
+impl Add<Aabb> for Vec3 {
+    type Output = Aabb;
 
-    fn add(self, bbox: AABB) -> AABB {
+    fn add(self, bbox: Aabb) -> Aabb {
         bbox + self
     }
 }
 
-impl Hittable for AABB {
+impl Hittable for Aabb {
     /// Checks if the ray hits the bounding box within the interval ray_t.
     fn hit(&self, r: &Ray, mut ray_t: Interval, _rec: &mut HitRecord) -> bool {
         let ray_orig: Point3 = r.origin();
@@ -179,7 +173,7 @@ impl Hittable for AABB {
     }
 
     /// Returns the bounding box of this object (itself).
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         *self
     }
 }

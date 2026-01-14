@@ -17,8 +17,8 @@ impl Perlin {
     /// Creates a new Perlin noise instance with random gradients and permutations.
     pub fn new() -> Self {
         let mut randvec = [Vec3::default(); POINT_COUNT];
-        for i in 0..POINT_COUNT {
-            randvec[i] = Vec3::unit_vector(Vec3::random_range(-1.0, 1.0));
+        for item in randvec.iter_mut().take(POINT_COUNT) {
+            *item = Vec3::unit_vector(Vec3::random_range(-1.0, 1.0));
         }
 
         let perm_x = Perlin::perlin_generate_perm();
@@ -78,8 +78,8 @@ impl Perlin {
     /// Generates a random permutation array of 0..255.
     fn perlin_generate_perm() -> [usize; POINT_COUNT] {
         let mut p = [0usize; POINT_COUNT];
-        for i in 0..POINT_COUNT {
-            p[i] = i;
+        for (i, item) in p.iter_mut().enumerate().take(POINT_COUNT) {
+            *item = i;
         }
         Perlin::permute(&mut p);
         p

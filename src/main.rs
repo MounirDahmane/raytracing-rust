@@ -813,7 +813,6 @@ fn final_scene(image_width: u32, samples_per_pixel: u32, max_depth: u32) {
 }
 
 fn render_bouncing_spheres_animation() {
-
     // Physics & animation params
     let g = 9.81_f64;
     let h0 = 2.0_f64;
@@ -933,10 +932,17 @@ fn render_bouncing_spheres_animation() {
         let bounce_idx = if cum_times.is_empty() {
             0usize
         } else {
-            cum_times.iter().position(|&ct| ct > t).unwrap_or(cum_times.len().saturating_sub(1))
+            cum_times
+                .iter()
+                .position(|&ct| ct > t)
+                .unwrap_or(cum_times.len().saturating_sub(1))
         };
 
-        let prev_cum = if bounce_idx == 0 { 0.0 } else { cum_times[bounce_idx - 1] };
+        let prev_cum = if bounce_idx == 0 {
+            0.0
+        } else {
+            cum_times[bounce_idx - 1]
+        };
         let t_in = t - prev_cum;
 
         // compute current bounce height and v_n

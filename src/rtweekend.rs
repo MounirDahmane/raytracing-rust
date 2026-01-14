@@ -1,9 +1,9 @@
-use rand::{rng, Rng};
+use rand::{Rng, rng};
 
 /// Mathematical constant for infinity.
 pub const INFINITY: f64 = f64::INFINITY;
 /// Mathematical constant for π.
-pub const PI: f64 = 3.1415926535897932385;
+pub const PI: f64 = 3.141_592_653_589_793;
 
 /// Converts degrees to radians.
 #[inline]

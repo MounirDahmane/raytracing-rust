@@ -1,13 +1,13 @@
 use rayon::prelude::*;
 use std::sync::Arc;
 
-use crate::aabb::AABB;
+use crate::aabb::Aabb;
 use crate::hittable::{HitRecord, Hittable};
 use crate::{interval::Interval, ray::Ray};
 
 pub struct HittableList {
     pub objects: Vec<Arc<dyn Hittable + Send + Sync>>, // List of hittable objects
-    pub bbox: AABB,                                   // Bounding box encompassing all objects
+    pub bbox: Aabb,                                    // Bounding box encompassing all objects
 }
 
 impl HittableList {
@@ -15,7 +15,7 @@ impl HittableList {
     pub fn new() -> Self {
         HittableList {
             objects: Vec::new(),
-            bbox: AABB::new_empty(),
+            bbox: Aabb::new_empty(),
         }
     }
 
@@ -23,7 +23,7 @@ impl HittableList {
     pub fn add(&mut self, object: Arc<dyn Hittable + Send + Sync>) {
         let object_bbox = object.bounding_box();
         self.objects.push(object);
-        self.bbox = AABB::new_(self.bbox, object_bbox);
+        self.bbox = Aabb::new_(self.bbox, object_bbox);
     }
 
     /// Clears the hittable list.
@@ -61,7 +61,7 @@ impl Hittable for HittableList {
     }
 
     /// Returns the bounding box enclosing all objects in the list.
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 }

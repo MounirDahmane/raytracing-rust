@@ -96,7 +96,7 @@ impl ImageTexture {
 
 impl Texture for ImageTexture {
     fn value(&self, u: f64, v: f64, _p: &Point3) -> Color {
-        if self.image.height() <= 0 {
+        if self.image.height() == 0 {
             // Cyan for missing texture as a debug color
             return Color::new(0.0, 1.0, 1.0);
         }

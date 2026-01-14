@@ -1,4 +1,4 @@
-use crate::aabb::AABB;
+use crate::aabb::Aabb;
 use crate::hittable::{HitRecord, Hittable};
 use crate::interval::Interval;
 use crate::material::*;
@@ -9,10 +9,10 @@ use std::sync::Arc;
 
 /// Represents a sphere, which can be static or moving, with a material and bounding box.
 pub struct Sphere {
-    center: Ray, // Center position and velocity for moving spheres.
-    radius: f64, // Sphere radius, non-negative.
+    center: Ray,                          // Center position and velocity for moving spheres.
+    radius: f64,                          // Sphere radius, non-negative.
     mat: Arc<dyn Material + Send + Sync>, // Material reference.
-    bbox: AABB,  // Bounding box enclosing the sphere.
+    bbox: Aabb,                           // Bounding box enclosing the sphere.
 }
 
 impl Sphere {
@@ -24,7 +24,7 @@ impl Sphere {
         mat: Arc<dyn Material + Send + Sync>,
     ) -> Self {
         let rvec = Vec3::new(radius, radius, radius);
-        let bbox = AABB::new_from_points(static_center - rvec, static_center + rvec);
+        let bbox = Aabb::new_from_points(static_center - rvec, static_center + rvec);
 
         Sphere {
             center: Ray::new_no_time(static_center, Vec3::default()),
@@ -46,9 +46,9 @@ impl Sphere {
         let radius = radius.max(0.0);
 
         let rvec = Vec3::new(radius, radius, radius);
-        let box1 = AABB::new_from_points(center.at(0.0) - rvec, center.at(0.0) + rvec);
-        let box2 = AABB::new_from_points(center.at(1.0) - rvec, center.at(1.0) + rvec);
-        let bbox = AABB::new_(box1, box2);
+        let box1 = Aabb::new_from_points(center.at(0.0) - rvec, center.at(0.0) + rvec);
+        let box2 = Aabb::new_from_points(center.at(1.0) - rvec, center.at(1.0) + rvec);
+        let bbox = Aabb::new_(box1, box2);
 
         Sphere {
             center,
@@ -114,7 +114,7 @@ impl Hittable for Sphere {
 
     /// Returns the bounding box of the sphere.
     #[inline(always)]
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 }

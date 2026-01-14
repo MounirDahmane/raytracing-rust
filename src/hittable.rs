@@ -1,8 +1,8 @@
-use crate::aabb::AABB;
+use crate::aabb::Aabb;
 use crate::material::Material;
 use crate::rtweekend::{self, INFINITY};
 use crate::vec3::{Point3, Vec3};
-use crate::{interval::Interval, Ray};
+use crate::{Ray, interval::Interval};
 use std::sync::Arc;
 
 pub struct HitRecord {
@@ -43,14 +43,14 @@ impl Default for HitRecord {
 
 pub trait Hittable: Send + Sync {
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool;
-    fn bounding_box(&self) -> AABB;
+    fn bounding_box(&self) -> Aabb;
 }
 
 /// Translate wrapper: translates a hittable object by an offset.
 pub struct Translate {
     object: Arc<dyn Hittable + Send + Sync>,
     offset: Vec3,
-    bbox: AABB,
+    bbox: Aabb,
 }
 
 impl Translate {
@@ -80,7 +80,7 @@ impl Hittable for Translate {
         true
     }
 
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 }
@@ -90,7 +90,7 @@ pub struct RotateY {
     object: Arc<dyn Hittable + Send + Sync>,
     sin_theta: f64,
     cos_theta: f64,
-    bbox: AABB,
+    bbox: Aabb,
 }
 
 impl RotateY {
@@ -124,7 +124,7 @@ impl RotateY {
             }
         }
 
-        let bbox = AABB::new_from_points(min, max);
+        let bbox = Aabb::new_from_points(min, max);
 
         Self {
             object,
@@ -172,7 +172,7 @@ impl Hittable for RotateY {
         true
     }
 
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 }

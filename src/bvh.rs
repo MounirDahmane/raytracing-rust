@@ -1,18 +1,18 @@
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use crate::aabb::AABB;
+use crate::Ray;
+use crate::aabb::Aabb;
 use crate::hittable::{HitRecord, Hittable};
 use crate::hittable_list::HittableList;
 use crate::interval::Interval;
-use crate::Ray;
 
 const PARALLEL_THRESHOLD: usize = 64; // Threshold for parallel recursion
 
 pub struct BvhNode {
     left: Arc<dyn Hittable + Send + Sync>,
     right: Arc<dyn Hittable + Send + Sync>,
-    bbox: AABB,
+    bbox: Aabb,
 }
 
 impl BvhNode {
@@ -30,9 +30,9 @@ impl BvhNode {
     /// Objects are sorted along the longest axis of their combined bounding box.
     pub fn new(objects: &mut [Arc<dyn Hittable + Send + Sync>], start: usize, end: usize) -> Self {
         // Compute bounding box enclosing all objects in [start, end)
-        let mut bbox = AABB::EMPTY;
-        for object_index in start..end {
-            bbox = AABB::new_(bbox, objects[object_index].bounding_box());
+        let mut bbox = Aabb::EMPTY;
+        for item in objects.iter().take(end).skip(start) {
+            bbox = Aabb::new_(bbox, item.bounding_box());
         }
 
         let axis = bbox.longest_axis();
@@ -56,7 +56,7 @@ impl BvhNode {
         }
 
         // For 3 or more objects, sort by bounding box minimum on longest axis
-        let mut pairs: Vec<(Arc<dyn Hittable + Send + Sync>, AABB)> = objects[start..end]
+        let mut pairs: Vec<(Arc<dyn Hittable + Send + Sync>, Aabb)> = objects[start..end]
             .iter()
             .map(|o| (Arc::clone(o), o.bounding_box()))
             .collect();
@@ -111,12 +111,14 @@ impl Hittable for BvhNode {
 
         // Limit right subtree ray interval to nearest hit on left subtree to prune search
         let upper_bound = if hit_left { rec.t } else { ray_t.max };
-        let hit_right = self.right.hit(r, Interval::new(ray_t.min, upper_bound), rec);
+        let hit_right = self
+            .right
+            .hit(r, Interval::new(ray_t.min, upper_bound), rec);
 
         hit_left || hit_right
     }
 
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 }

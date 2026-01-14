@@ -3,20 +3,20 @@ use std::sync::Arc;
 use crate::color::Color;
 use crate::material::Isotropic;
 use crate::{
-    aabb::AABB,
+    Ray,
+    aabb::Aabb,
     hittable::{HitRecord, Hittable},
     interval::Interval,
     material::Material,
     rtweekend::{self, INFINITY},
     texture::Texture,
     vec3::Vec3,
-    Ray,
 };
 
 pub struct ConstantMedium {
-    boundary: Arc<dyn Hittable>,      // Shape defining the volume boundary
-    neg_inv_density: f64,             // Negative inverse of medium density, for sampling
-    phase_function: Arc<dyn Material>,// Scattering phase function (isotropic)
+    boundary: Arc<dyn Hittable>,       // Shape defining the volume boundary
+    neg_inv_density: f64,              // Negative inverse of medium density, for sampling
+    phase_function: Arc<dyn Material>, // Scattering phase function (isotropic)
 }
 
 impl ConstantMedium {
@@ -50,7 +50,10 @@ impl Hittable for ConstantMedium {
         }
 
         // Find exit point of ray from boundary volume after entry
-        if !self.boundary.hit(r, Interval::new(rec1.t + 0.0001, INFINITY), &mut rec2) {
+        if !self
+            .boundary
+            .hit(r, Interval::new(rec1.t + 0.0001, INFINITY), &mut rec2)
+        {
             return false;
         }
 
@@ -92,8 +95,7 @@ impl Hittable for ConstantMedium {
         true
     }
 
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.boundary.bounding_box()
     }
 }
-

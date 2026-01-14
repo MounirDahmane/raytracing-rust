@@ -1,5 +1,5 @@
-use image::io::Reader as ImageReader;
 use image::DynamicImage;
+use image::io::Reader as ImageReader;
 use std::path::{Path, PathBuf};
 
 /// Converts an sRGB channel value to linear space.
@@ -102,20 +102,12 @@ impl RtwImage {
 
     /// Returns image width, or 0 if no image data is loaded.
     pub fn width(&self) -> usize {
-        if self.fdata.is_some() {
-            self.w
-        } else {
-            0
-        }
+        if self.fdata.is_some() { self.w } else { 0 }
     }
 
     /// Returns image height, or 0 if no image data is loaded.
     pub fn height(&self) -> usize {
-        if self.fdata.is_some() {
-            self.h
-        } else {
-            0
-        }
+        if self.fdata.is_some() { self.h } else { 0 }
     }
 
     /// Returns the clamped byte RGB pixel at (x,y), or magenta if no data is available.

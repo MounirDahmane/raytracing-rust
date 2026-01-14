@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::{
-    aabb::AABB, color::Color, hittable::HitRecord, hittable_list::HittableList, interval::Interval,
-    texture::Texture, Hittable, Material, Point3, Ray, Vec3,
+    Hittable, Material, Point3, Ray, Vec3, aabb::Aabb, color::Color, hittable::HitRecord,
+    hittable_list::HittableList, interval::Interval, texture::Texture,
 };
 
 /// 2D primitives defined in (alpha, beta) parameter space for carving shapes.
@@ -18,15 +18,15 @@ pub enum Primitive {
 
 /// A planar quad (parallelogram) with an associated primitive shape for hit testing.
 pub struct Quad {
-    q: Point3,                                  // Quad origin point
-    u: Vec3,                                   // First edge vector
-    v: Vec3,                                   // Second edge vector
-    w: Vec3,                                   // Vector for parameter space projection
-    mat: Arc<dyn Material + Send + Sync>,      // Material of the quad
-    bbox: AABB,                                // Bounding box enclosing the quad
-    normal: Vec3,                              // Plane normal vector
-    d: f64,                                    // Plane offset (dot(normal, q))
-    primitive: Primitive,                      // Primitive shape type used for interior testing
+    q: Point3,                            // Quad origin point
+    u: Vec3,                              // First edge vector
+    v: Vec3,                              // Second edge vector
+    w: Vec3,                              // Vector for parameter space projection
+    mat: Arc<dyn Material + Send + Sync>, // Material of the quad
+    bbox: Aabb,                           // Bounding box enclosing the quad
+    normal: Vec3,                         // Plane normal vector
+    d: f64,                               // Plane offset (dot(normal, q))
+    primitive: Primitive,                 // Primitive shape type used for interior testing
 }
 
 impl Quad {
@@ -61,10 +61,10 @@ impl Quad {
     }
 
     /// Computes axis-aligned bounding box enclosing all quad vertices.
-    fn set_bounding_box(q: &Point3, u: &Vec3, v: &Vec3) -> AABB {
-        let bbox_diagonal1 = AABB::new_from_points(*q, *q + *u + *v);
-        let bbox_diagonal2 = AABB::new_from_points(*q + *u, *q + *v);
-        AABB::new_(bbox_diagonal1, bbox_diagonal2)
+    fn set_bounding_box(q: &Point3, u: &Vec3, v: &Vec3) -> Aabb {
+        let bbox_diagonal1 = Aabb::new_from_points(*q, *q + *u + *v);
+        let bbox_diagonal2 = Aabb::new_from_points(*q + *u, *q + *v);
+        Aabb::new_(bbox_diagonal1, bbox_diagonal2)
     }
 
     /// Returns true if the (a,b) coordinates lie inside the quad's primitive shape.
@@ -72,7 +72,7 @@ impl Quad {
     pub fn is_interior(&self, a: f64, b: f64, hit_p: &Point3, rec: &mut HitRecord) -> bool {
         match &self.primitive {
             Primitive::Quad => {
-                if a >= 0.0 && a <= 1.0 && b >= 0.0 && b <= 1.0 {
+                if (0.0..=1.0).contains(&a) && (0.0..=1.0).contains(&b) {
                     rec.u = a;
                     rec.v = b;
                     true
@@ -129,7 +129,7 @@ impl Quad {
 
             Primitive::TextureMask(tex) => {
                 // Reject if outside unit UV range
-                if a < 0.0 || a > 1.0 || b < 0.0 || b > 1.0 {
+                if !(0.0..=1.0).contains(&a) || !(0.0..=1.0).contains(&b) {
                     return false;
                 }
 
@@ -265,7 +265,7 @@ impl Hittable for Quad {
         true
     }
 
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 }
