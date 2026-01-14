@@ -1,4 +1,4 @@
-use crate::aabb::AABB;
+use crate::aabb::Aabb;
 use crate::hittable::{HitRecord, Hittable};
 use crate::interval::Interval;
 use crate::onb::Onb;
@@ -7,21 +7,25 @@ use crate::rtweekend::{INFINITY, PI, random_double};
 use crate::vec3::{Point3, Vec3};
 use crate::{material::*, rtweekend};
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A sphere that can be stationary or moving, with an associated material.
 pub struct Sphere {
     center: Ray, // Represents the center and velocity (for moving sphere)
     radius: f64,
-    mat: Rc<dyn Material>,
-    bbox: AABB,
+    mat: Arc<dyn Material + Send + Sync>,
+    bbox: Aabb,
 }
 
 impl Sphere {
     /// Creates a stationary sphere with a fixed center.
-    pub fn new_static_sphere(static_center: Point3, radius: f64, mat: Rc<dyn Material>) -> Self {
+    pub fn new_static_sphere(
+        static_center: Point3,
+        radius: f64,
+        mat: Arc<dyn Material + Send + Sync>,
+    ) -> Self {
         let rvec = Vec3::new(radius, radius, radius);
-        let bbox = AABB::new_from_points(static_center - rvec, static_center + rvec);
+        let bbox = Aabb::new_from_points(static_center - rvec, static_center + rvec);
 
         Sphere {
             center: Ray::new_no_time(static_center, Vec3::default()),
@@ -36,15 +40,15 @@ impl Sphere {
         center1: Point3,
         center2: Point3,
         radius: f64,
-        mat: Rc<dyn Material>,
+        mat: Arc<dyn Material + Send + Sync>,
     ) -> Self {
         let center = Ray::new_no_time(center1, center2 - center1);
         let radius = radius.max(0.0);
 
         let rvec = Vec3::new(radius, radius, radius);
-        let box1 = AABB::new_from_points(center.at(0.0) - rvec, center.at(0.0) + rvec);
-        let box2 = AABB::new_from_points(center.at(1.0) - rvec, center.at(1.0) + rvec);
-        let bbox = AABB::new_(box1, box2);
+        let box1 = Aabb::new_from_points(center.at(0.0) - rvec, center.at(0.0) + rvec);
+        let box2 = Aabb::new_from_points(center.at(1.0) - rvec, center.at(1.0) + rvec);
+        let bbox = Aabb::new_(box1, box2);
 
         Sphere {
             center,
@@ -117,13 +121,13 @@ impl Hittable for Sphere {
 
         Sphere::get_sphere_uv(&outward_normal, &mut rec.u, &mut rec.v);
 
-        rec.mat = Some(Rc::clone(&self.mat));
+        rec.mat = Some(Arc::clone(&self.mat));
 
         true
     }
 
     /// Returns the bounding box of the sphere.
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 

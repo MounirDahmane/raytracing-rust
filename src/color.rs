@@ -27,13 +27,13 @@ pub fn write_color<W: Write>(out: &mut W, pixel_color: &Color) -> std::io::Resul
     let mut b = pixel_color.z();
 
     // Replace NaN components with zero.
-    if r != r {
+    if r.is_nan() {
         r = 0.0;
     }
-    if g != g {
+    if g.is_nan() {
         g = 0.0;
     }
-    if b != b {
+    if b.is_nan() {
         b = 0.0;
     }
 

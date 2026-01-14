@@ -1,16 +1,16 @@
-use crate::Rc;
-use crate::aabb::AABB;
+use crate::aabb::Aabb;
 use crate::hittable::{HitRecord, Hittable};
 use crate::rtweekend::random_int_range;
 use crate::vec3::*;
 use crate::{interval::Interval, ray::Ray};
+use std::sync::Arc;
 
 /// A collection of hittable objects with a combined bounding box.
 pub struct HittableList {
     /// The list of objects.
-    pub objects: Vec<Rc<dyn Hittable>>,
+    pub objects: Vec<Arc<dyn Hittable + Send + Sync>>,
     /// Bounding box enclosing all objects.
-    pub bbox: AABB,
+    pub bbox: Aabb,
 }
 
 impl HittableList {
@@ -18,12 +18,12 @@ impl HittableList {
     pub fn new() -> Self {
         HittableList {
             objects: Vec::new(),
-            bbox: AABB::new_empty(),
+            bbox: Aabb::new_empty(),
         }
     }
 
     /// Adds a single object to the list.
-    pub fn new_list(&mut self, object: Rc<dyn Hittable>) {
+    pub fn new_list(&mut self, object: Arc<dyn Hittable + Send + Sync>) {
         self.add(object)
     }
 
@@ -33,10 +33,10 @@ impl HittableList {
     }
 
     /// Adds an object to the list and updates the bounding box.
-    pub fn add(&mut self, object: Rc<dyn Hittable>) {
+    pub fn add(&mut self, object: Arc<dyn Hittable + Send + Sync>) {
         let object_bbox = object.bounding_box();
         self.objects.push(object);
-        self.bbox = AABB::new_(self.bbox, object_bbox);
+        self.bbox = Aabb::new_(self.bbox, object_bbox);
     }
 }
 
@@ -59,7 +59,7 @@ impl Hittable for HittableList {
     }
 
     /// Returns the bounding box enclosing all objects in the list.
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 

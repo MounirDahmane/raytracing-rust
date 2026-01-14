@@ -16,8 +16,8 @@ impl Perlin {
     /// Creates a new Perlin noise generator with random unit vectors and permutation tables.
     pub fn new() -> Self {
         let mut randvec = [Vec3::default(); POINT_COUNT];
-        for i in 0..POINT_COUNT {
-            randvec[i] = Vec3::unit_vector(Vec3::random_range(-1.0, 1.0));
+        for item in randvec.iter_mut().take(POINT_COUNT) {
+            *item = Vec3::unit_vector(Vec3::random_range(-1.0, 1.0));
         }
 
         let perm_x = Perlin::perlin_generate_perm();
@@ -44,13 +44,13 @@ impl Perlin {
 
         // Gather the eight surrounding gradient vectors from the permutation tables
         let mut c = [[[Vec3::default(); 2]; 2]; 2];
-        for di in 0..2 {
-            for dj in 0..2 {
-                for dk in 0..2 {
+        for (di, c_di) in c.iter_mut().enumerate() {
+            for (dj, c_dj) in c_di.iter_mut().enumerate() {
+                for (dk, c_dk) in c_dj.iter_mut().enumerate() {
                     let idx = self.perm_x[(i + di) & 255]
                         ^ self.perm_y[(j + dj) & 255]
                         ^ self.perm_z[(k + dk) & 255];
-                    c[di][dj][dk] = self.randvec[idx];
+                    *c_dk = self.randvec[idx];
                 }
             }
         }
@@ -78,8 +78,8 @@ impl Perlin {
     /// Generates a permutation array of POINT_COUNT elements.
     fn perlin_generate_perm() -> [usize; POINT_COUNT] {
         let mut p = [0usize; POINT_COUNT];
-        for i in 0..POINT_COUNT {
-            p[i] = i;
+        for (i, item) in p.iter_mut().enumerate().take(POINT_COUNT) {
+            *item = i;
         }
         Perlin::permute(&mut p);
         p

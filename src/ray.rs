@@ -2,7 +2,7 @@ use crate::vec3::Point3;
 use crate::vec3::Vec3;
 
 /// Represents a ray in 3D space, with an origin, direction, and optional time value.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct Ray {
     org: Point3,
     dir: Vec3,
@@ -25,16 +25,6 @@ impl Ray {
             org: origin,
             dir: direction,
             tm: 0.0,
-        }
-    }
-}
-
-impl Default for Ray {
-    fn default() -> Self {
-        Ray {
-            org: Point3::default(),
-            dir: Vec3::default(),
-            tm: f64::default(),
         }
     }
 }

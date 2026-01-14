@@ -1,10 +1,10 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::color::Color;
 use crate::material::Isotropic;
 use crate::{
     Ray,
-    aabb::AABB,
+    aabb::Aabb,
     hittable::{HitRecord, Hittable},
     interval::Interval,
     material::Material,
@@ -17,29 +17,33 @@ use crate::{
 /// typically used to simulate fog, smoke, or other participating media.
 pub struct ConstantMedium {
     /// Boundary hittable defining the volume shape.
-    boundary: Rc<dyn Hittable>,
+    boundary: Arc<dyn Hittable + Send + Sync>,
     /// Negative inverse of the density for scattering distance calculation.
     neg_inv_density: f64,
     /// Phase function material representing scattering properties inside the medium.
-    phase_function: Rc<dyn Material>,
+    phase_function: Arc<dyn Material + Send + Sync>,
 }
 
 impl ConstantMedium {
     /// Creates a new constant medium with given boundary, density, and texture.
-    pub fn new(boundary: Rc<dyn Hittable>, density: f64, tex: Rc<dyn Texture>) -> Self {
+    pub fn new(
+        boundary: Arc<dyn Hittable + Send + Sync>,
+        density: f64,
+        tex: Arc<dyn Texture + Send + Sync>,
+    ) -> Self {
         Self {
             boundary,
             neg_inv_density: -1.0 / density,
-            phase_function: Rc::new(Isotropic::new_(tex)),
+            phase_function: Arc::new(Isotropic::new_(tex)),
         }
     }
 
     /// Creates a new constant medium with given boundary, density, and albedo color.
-    pub fn new_(boundary: Rc<dyn Hittable>, density: f64, albedo: &Color) -> Self {
+    pub fn new_(boundary: Arc<dyn Hittable + Send + Sync>, density: f64, albedo: &Color) -> Self {
         Self {
             boundary,
             neg_inv_density: -1.0 / density,
-            phase_function: Rc::new(Isotropic::new(albedo)),
+            phase_function: Arc::new(Isotropic::new(albedo)),
         }
     }
 }
@@ -99,7 +103,7 @@ impl Hittable for ConstantMedium {
     }
 
     /// Returns the bounding box of the medium, same as the boundary's bounding box.
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.boundary.bounding_box()
     }
 }

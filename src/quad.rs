@@ -1,8 +1,8 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::{
     Hittable, Material, Point3, Ray, Vec3,
-    aabb::AABB,
+    aabb::Aabb,
     color::Color,
     hittable::HitRecord,
     hittable_list::HittableList,
@@ -13,13 +13,13 @@ use crate::{
 
 /// 2D primitives that can be carved out in the (alpha, beta) plane.
 pub enum Primitive {
-    Quad,                               // Unit square 0..=1 x 0..=1
-    Disk(f64),                          // Disk with radius r centered at (0,0)
-    Triangle,                           // Triangle: a>=0, b>=0, a+b <= 1
-    Ellipse { rx: f64, ry: f64 },       // Ellipse with radii rx, ry
-    Annulus { inner: f64, outer: f64 }, // Ring: inner..outer radius
-    TextureMask(Rc<dyn Texture>),       // Mask based on texture value(u,v,p)
-    Mandelbrot { iterations: usize },   // Mandelbrot membership (mapped from [0,1]^2)
+    Quad,                                        // Unit square 0..=1 x 0..=1
+    Disk(f64),                                   // Disk with radius r centered at (0,0)
+    Triangle,                                    // Triangle: a>=0, b>=0, a+b <= 1
+    Ellipse { rx: f64, ry: f64 },                // Ellipse with radii rx, ry
+    Annulus { inner: f64, outer: f64 },          // Ring: inner..outer radius
+    TextureMask(Arc<dyn Texture + Send + Sync>), // Mask based on texture value(u,v,p)
+    Mandelbrot { iterations: usize },            // Mandelbrot membership (mapped from [0,1]^2)
 }
 
 /// Represents a planar quadrilateral (or other primitives) with associated material and geometry.
@@ -28,8 +28,8 @@ pub struct Quad {
     u: Vec3,
     v: Vec3,
     w: Vec3,
-    mat: Rc<dyn Material>,
-    bcreate_box: AABB,
+    mat: Arc<dyn Material + Send + Sync>,
+    bcreate_box: Aabb,
     normal: Vec3,
     d: f64,
     primitive: Primitive,
@@ -38,7 +38,13 @@ pub struct Quad {
 
 impl Quad {
     /// Create a new Quad with position `q`, edge vectors `u` and `v`, material `mat`, and shape `primitive`.
-    pub fn new(q: Point3, u: Vec3, v: Vec3, mat: Rc<dyn Material>, primitive: Primitive) -> Self {
+    pub fn new(
+        q: Point3,
+        u: Vec3,
+        v: Vec3,
+        mat: Arc<dyn Material + Send + Sync>,
+        primitive: Primitive,
+    ) -> Self {
         let n = Vec3::cross(&u, &v);
         let bcreate_box = Quad::set_bounding_create_box(&q, &u, &v);
 
@@ -65,10 +71,10 @@ impl Quad {
     }
 
     /// Compute the bounding create_box containing all four vertices of the quad.
-    fn set_bounding_create_box(q: &Point3, u: &Vec3, v: &Vec3) -> AABB {
-        let bcreate_box_diagonal1 = AABB::new_from_points(*q, *q + *u + *v);
-        let bcreate_box_diagonal2 = AABB::new_from_points(*q + *u, *q + *v);
-        AABB::new_(bcreate_box_diagonal1, bcreate_box_diagonal2)
+    fn set_bounding_create_box(q: &Point3, u: &Vec3, v: &Vec3) -> Aabb {
+        let bcreate_box_diagonal1 = Aabb::new_from_points(*q, *q + *u + *v);
+        let bcreate_box_diagonal2 = Aabb::new_from_points(*q + *u, *q + *v);
+        Aabb::new_(bcreate_box_diagonal1, bcreate_box_diagonal2)
     }
 
     /// Returns true if `(a, b)` lies inside the selected primitive shape.
@@ -76,7 +82,7 @@ impl Quad {
     pub fn is_interior(&self, a: f64, b: f64, hit_p: &Point3, rec: &mut HitRecord) -> bool {
         match &self.primitive {
             Primitive::Quad => {
-                if a >= 0.0 && a <= 1.0 && b >= 0.0 && b <= 1.0 {
+                if (0.0..=1.0).contains(&a) && (0.0..=1.0).contains(&b) {
                     rec.u = a;
                     rec.v = b;
                     true
@@ -128,7 +134,7 @@ impl Quad {
             }
             Primitive::TextureMask(tex) => {
                 // Quick reject: outside unit square
-                if a < 0.0 || a > 1.0 || b < 0.0 || b > 1.0 {
+                if !(0.0..=1.0).contains(&a) || !(0.0..=1.0).contains(&b) {
                     return false;
                 }
 
@@ -165,7 +171,11 @@ impl Quad {
     }
 
     /// Create a create_box (six quads) from two opposite corners `a` and `b` with material `mat`.
-    pub fn create_box(a: &Point3, b: &Point3, mat: Rc<dyn Material>) -> HittableList {
+    pub fn create_box(
+        a: &Point3,
+        b: &Point3,
+        mat: Arc<dyn Material + Send + Sync>,
+    ) -> HittableList {
         let mut sides = HittableList::new();
 
         let min = Point3::new(a.x().min(b.x()), a.y().min(b.y()), a.z().min(b.z()));
@@ -175,42 +185,42 @@ impl Quad {
         let dy = Vec3::new(0.0, max.y() - min.y(), 0.0);
         let dz = Vec3::new(0.0, 0.0, max.z() - min.z());
 
-        sides.add(Rc::new(Quad::new(
+        sides.add(Arc::new(Quad::new(
             Point3::new(min.x(), min.y(), max.z()),
             dx,
             dy,
             mat.clone(),
             Primitive::Quad,
         ))); // front
-        sides.add(Rc::new(Quad::new(
+        sides.add(Arc::new(Quad::new(
             Point3::new(max.x(), min.y(), max.z()),
             -dz,
             dy,
             mat.clone(),
             Primitive::Quad,
         ))); // right
-        sides.add(Rc::new(Quad::new(
+        sides.add(Arc::new(Quad::new(
             Point3::new(max.x(), min.y(), min.z()),
             -dx,
             dy,
             mat.clone(),
             Primitive::Quad,
         ))); // back
-        sides.add(Rc::new(Quad::new(
+        sides.add(Arc::new(Quad::new(
             Point3::new(min.x(), min.y(), min.z()),
             dz,
             dy,
             mat.clone(),
             Primitive::Quad,
         ))); // left
-        sides.add(Rc::new(Quad::new(
+        sides.add(Arc::new(Quad::new(
             Point3::new(min.x(), max.y(), max.z()),
             dx,
             -dz,
             mat.clone(),
             Primitive::Quad,
         ))); // top
-        sides.add(Rc::new(Quad::new(
+        sides.add(Arc::new(Quad::new(
             Point3::new(min.x(), min.y(), min.z()),
             dx,
             dz,
@@ -249,13 +259,13 @@ impl Hittable for Quad {
 
         rec.t = t;
         rec.p = intersection;
-        rec.mat = Some(Rc::clone(&self.mat));
+        rec.mat = Some(Arc::clone(&self.mat));
         rec.set_face_normal(r, &self.normal);
 
         true
     }
 
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bcreate_box
     }
 

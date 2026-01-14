@@ -3,7 +3,7 @@ use crate::{
     texture::*,
     vec3::Point3,
 };
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::{
     color::{self, Color},
@@ -17,7 +17,7 @@ use crate::{
 /// Stores the result of scattering a ray from a material.
 pub struct ScatterRecord {
     pub attenuation: Color,
-    pub pdf_ptr: Option<Rc<dyn Pdf>>,
+    pub pdf_ptr: Option<Arc<dyn Pdf + Send + Sync>>,
     pub skip_pdf: bool,
     pub skip_pdf_ray: Ray,
 }
@@ -37,7 +37,7 @@ impl ScatterRecord {
 /// A material that does nothing (no scattering or emission).
 pub struct NoMaterial;
 
-pub trait Material {
+pub trait Material: Send + Sync {
     /// Compute scattering for an incoming ray.
     /// Returns true if scattering occurred and updates `srec`.
     fn scatter(&self, r_in: &Ray, rec: &HitRecord, srec: &mut ScatterRecord) -> bool {
@@ -59,19 +59,19 @@ impl Material for NoMaterial {}
 
 /// Lambertian (diffuse) material with texture.
 pub struct Lambertian {
-    tex: Rc<dyn Texture>,
+    tex: Arc<dyn Texture + Send + Sync>,
 }
 
 impl Lambertian {
     /// Create a Lambertian material from a solid color.
     pub fn new(albedo: Color) -> Self {
         Lambertian {
-            tex: Rc::new(SolidColor::new(&albedo)),
+            tex: Arc::new(SolidColor::new(&albedo)),
         }
     }
 
     /// Create a Lambertian material from a texture.
-    pub fn new_(tex: Rc<dyn Texture>) -> Self {
+    pub fn new_(tex: Arc<dyn Texture + Send + Sync>) -> Self {
         Lambertian { tex }
     }
 }
@@ -79,7 +79,7 @@ impl Lambertian {
 impl Material for Lambertian {
     fn scatter(&self, _r_in: &Ray, rec: &HitRecord, srec: &mut ScatterRecord) -> bool {
         srec.attenuation = self.tex.value(rec.u, rec.v, &rec.p);
-        srec.pdf_ptr = Some(Rc::new(CosinePdf::new(&rec.normal)));
+        srec.pdf_ptr = Some(Arc::new(CosinePdf::new(&rec.normal)));
         srec.skip_pdf = false;
         true
     }
@@ -233,19 +233,19 @@ impl Material for ColoredDielectric {
 
 /// Material that emits light.
 pub struct DiffuseLight {
-    tex: Rc<dyn Texture>,
+    tex: Arc<dyn Texture + Send + Sync>,
 }
 
 impl DiffuseLight {
     /// Create a new DiffuseLight from a texture.
-    pub fn new(tex: Rc<dyn Texture>) -> Self {
+    pub fn new(tex: Arc<dyn Texture + Send + Sync>) -> Self {
         Self { tex }
     }
 
     /// Create a new DiffuseLight from a solid color.
     pub fn new_(emit: &Color) -> Self {
         Self {
-            tex: Rc::new(SolidColor::new(emit)),
+            tex: Arc::new(SolidColor::new(emit)),
         }
     }
 }
@@ -261,19 +261,19 @@ impl Material for DiffuseLight {
 
 /// Material for isotropic scattering (e.g., fog).
 pub struct Isotropic {
-    tex: Rc<dyn Texture>,
+    tex: Arc<dyn Texture + Send + Sync>,
 }
 
 impl Isotropic {
     /// Create a new isotropic material from a solid color.
     pub fn new(albedo: &Color) -> Self {
         Self {
-            tex: Rc::new(SolidColor::new(albedo)),
+            tex: Arc::new(SolidColor::new(albedo)),
         }
     }
 
     /// Create a new isotropic material from a texture.
-    pub fn new_(tex: Rc<dyn Texture>) -> Self {
+    pub fn new_(tex: Arc<dyn Texture + Send + Sync>) -> Self {
         Self { tex }
     }
 }
@@ -281,7 +281,7 @@ impl Isotropic {
 impl Material for Isotropic {
     fn scatter(&self, _r_in: &Ray, rec: &HitRecord, srec: &mut ScatterRecord) -> bool {
         srec.attenuation = self.tex.value(rec.u, rec.v, &rec.p);
-        srec.pdf_ptr = Some(Rc::new(SpherePdf::new()));
+        srec.pdf_ptr = Some(Arc::new(SpherePdf::new()));
         srec.skip_pdf = false;
         true
     }

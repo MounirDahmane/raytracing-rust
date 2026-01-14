@@ -1,9 +1,9 @@
-use crate::aabb::AABB;
+use crate::aabb::Aabb;
 use crate::material::Material;
 use crate::rtweekend::{self, INFINITY};
 use crate::vec3::{Point3, Vec3};
 use crate::{Ray, interval::Interval};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Stores information about a ray-object hit.
 pub struct HitRecord {
@@ -12,7 +12,7 @@ pub struct HitRecord {
     /// Surface normal at the intersection.
     pub normal: Vec3,
     /// Material at the intersection point.
-    pub mat: Option<Rc<dyn Material>>,
+    pub mat: Option<Arc<dyn Material + Send + Sync>>,
     /// Ray parameter at hit point.
     pub t: f64,
     /// Texture coordinates u.
@@ -52,12 +52,12 @@ impl Default for HitRecord {
 }
 
 /// Trait for objects that can be intersected by rays.
-pub trait Hittable {
+pub trait Hittable: Send + Sync {
     /// Checks for ray intersection within a given interval.
     fn hit(&self, r: &Ray, ray_t: Interval, rec: &mut HitRecord) -> bool;
 
     /// Returns the bounding box enclosing the object.
-    fn bounding_box(&self) -> AABB;
+    fn bounding_box(&self) -> Aabb;
 
     /// Probability density function value for a given ray origin and direction.
     /// Defaults to 0.0 (no importance sampling).
@@ -74,14 +74,14 @@ pub trait Hittable {
 
 /// Translates a hittable object by a given offset.
 pub struct Translate {
-    object: Rc<dyn Hittable>,
+    object: Arc<dyn Hittable + Send + Sync>,
     offset: Vec3,
-    bbox: AABB,
+    bbox: Aabb,
 }
 
 impl Translate {
     /// Creates a new translated hittable object.
-    pub fn new(object: Rc<dyn Hittable>, offset: Vec3) -> Self {
+    pub fn new(object: Arc<dyn Hittable + Send + Sync>, offset: Vec3) -> Self {
         let bbox = object.bounding_box() + offset;
         Self {
             object,
@@ -103,22 +103,22 @@ impl Hittable for Translate {
     }
 
     /// Returns the translated bounding box.
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 }
 
 /// Rotates a hittable object around the Y-axis by a specified angle.
 pub struct RotateY {
-    object: Rc<dyn Hittable>,
+    object: Arc<dyn Hittable + Send + Sync>,
     sin_theta: f64,
     cos_theta: f64,
-    bbox: AABB,
+    bbox: Aabb,
 }
 
 impl RotateY {
     /// Creates a new Y-axis rotated hittable object with given angle in degrees.
-    pub fn new(object: Rc<dyn Hittable>, angle: f64) -> Self {
+    pub fn new(object: Arc<dyn Hittable + Send + Sync>, angle: f64) -> Self {
         let radians = rtweekend::degrees_to_radians(angle);
         let sin_theta = radians.sin();
         let cos_theta = radians.cos();
@@ -149,7 +149,7 @@ impl RotateY {
             }
         }
 
-        let bbox = AABB::new_from_points(min, max);
+        let bbox = Aabb::new_from_points(min, max);
         Self {
             object,
             sin_theta,
@@ -198,7 +198,7 @@ impl Hittable for RotateY {
     }
 
     /// Returns the bounding box of the rotated object.
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 }

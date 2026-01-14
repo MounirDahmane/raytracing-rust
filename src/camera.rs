@@ -9,9 +9,10 @@ use crate::{
     vec3::{Point3, Vec3},
 };
 
-use crate::Rc;
 use indicatif::ProgressBar;
+use rayon::prelude::*;
 use std::io::{self, BufWriter, Write};
+use std::sync::Arc;
 
 /// Camera struct containing parameters for rendering a 3D scene.
 pub struct Camera {
@@ -108,7 +109,41 @@ impl Camera {
 // Public methods
 impl Camera {
     /// Render the scene described by `world` and `lights` hittables.
-    pub fn render(&mut self, world: &dyn Hittable, lights: Rc<dyn Hittable>) {
+    ///
+    /// NOTE: `world` must be `Sync`. `lights` must be an `Arc<dyn Hittable + Send + Sync>`.
+    pub fn render(&self, world: &(dyn Hittable + Sync), lights: Arc<dyn Hittable + Send + Sync>) {
+        // Prepare pixel buffer (row-major: row j then column i)
+        let width = self.img_width as usize;
+        let height = self.image_height as usize;
+        let n_pixels = width * height;
+
+        // Each slot will be written exactly once by a Rayon worker, so par_iter_mut is safe.
+        let mut pixels: Vec<Color> = vec![Color::new(0.0, 0.0, 0.0); n_pixels];
+
+        // Parallel fill
+        pixels
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(idx, pixel_slot)| {
+                let i = (idx % width) as u32;
+                let j = (idx / width) as u32;
+
+                let mut pixel_color = Color::new(0.0, 0.0, 0.0);
+
+                // Stratified sampling
+                for s_j in 0..self.sqrt_spp {
+                    for s_i in 0..self.sqrt_spp {
+                        let r = self.get_ray(i, j, s_i, s_j);
+                        // clone the Arc cheaply for per-task ownership
+                        pixel_color += self.ray_color(&r, self.max_depth, world, lights.clone());
+                    }
+                }
+
+                let pc = self.pixel_samples_scale * pixel_color;
+                *pixel_slot = pc;
+            });
+
+        // Now write PPM header + pixels sequentially (single-threaded)
         let stdout = io::stdout();
         let mut out = BufWriter::new(stdout.lock());
 
@@ -120,16 +155,8 @@ impl Camera {
 
         for j in 0..self.image_height {
             for i in 0..self.img_width {
-                let mut pixel_color = Color::new(0.0, 0.0, 0.0);
-
-                // Stratified sampling over sqrt(spp) x sqrt(spp) subpixels
-                for s_j in 0..self.sqrt_spp {
-                    for s_i in 0..self.sqrt_spp {
-                        let r = self.get_ray(i, j, s_i, s_j);
-                        pixel_color += self.ray_color(&r, self.max_depth, world, lights.clone());
-                    }
-                }
-                let pc = self.pixel_samples_scale * pixel_color;
+                let idx = (j as usize) * width + (i as usize);
+                let pc = pixels[idx];
                 color::write_color(&mut out, &pc).unwrap();
             }
             bar.inc(1);
@@ -181,12 +208,14 @@ impl Camera {
     }
 
     /// Compute color for a ray by tracing through the scene recursively.
+    ///
+    /// `world` must be `Sync`. `lights` is an `Arc` and can be cheaply cloned for each task.
     fn ray_color(
         &self,
         r: &Ray,
         depth: u32,
-        world: &dyn Hittable,
-        lights: Rc<dyn Hittable>,
+        world: &(dyn Hittable + Sync),
+        lights: Arc<dyn Hittable + Send + Sync>,
     ) -> Color {
         if depth == 0 {
             return Color::new(0.0, 0.0, 0.0);
@@ -219,7 +248,7 @@ impl Camera {
                 * self.ray_color(&srec.skip_pdf_ray, depth - 1, world, lights.clone());
         }
 
-        let light_ptr = Rc::new(HittablePdf::new(lights.clone(), &rec.p));
+        let light_ptr = Arc::new(HittablePdf::new(lights.clone(), &rec.p));
         let p = MixturePdf::new(light_ptr, srec.pdf_ptr.as_ref().unwrap().clone());
 
         let scattered = Ray::new(rec.p, p.generate(), r.time());

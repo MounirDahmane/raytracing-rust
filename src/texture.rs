@@ -1,9 +1,9 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::{color::Color, interval::Interval, perlin::Perlin, rtw_image::RtwImage, vec3::Point3};
 
 /// Trait for textures that provide a color value given texture coordinates and a point in space.
-pub trait Texture {
+pub trait Texture: Send + Sync {
     /// Returns the color value at texture coordinates `(u, v)` and point `p`.
     fn value(&self, u: f64, v: f64, p: &Point3) -> Color;
 }
@@ -36,13 +36,17 @@ impl Texture for SolidColor {
 /// A checkerboard texture that alternates between two textures based on position.
 pub struct CheckerTexture {
     inv_scale: f64,
-    even: Rc<dyn Texture>,
-    odd: Rc<dyn Texture>,
+    even: Arc<dyn Texture + Send + Sync>,
+    odd: Arc<dyn Texture + Send + Sync>,
 }
 
 impl CheckerTexture {
     /// Creates a checker texture with the given scale and two textures for the even and odd squares.
-    pub fn new(scale: f64, even: Rc<dyn Texture>, odd: Rc<dyn Texture>) -> Self {
+    pub fn new(
+        scale: f64,
+        even: Arc<dyn Texture + Send + Sync>,
+        odd: Arc<dyn Texture + Send + Sync>,
+    ) -> Self {
         Self {
             inv_scale: 1.0 / scale,
             even,
@@ -54,8 +58,8 @@ impl CheckerTexture {
     pub fn new_(scale: f64, c1: &Color, c2: &Color) -> Self {
         Self::new(
             scale,
-            Rc::new(SolidColor::new(c1)),
-            Rc::new(SolidColor::new(c2)),
+            Arc::new(SolidColor::new(c1)),
+            Arc::new(SolidColor::new(c2)),
         )
     }
 }
@@ -93,7 +97,7 @@ impl ImageTexture {
 impl Texture for ImageTexture {
     fn value(&self, u: f64, v: f64, _p: &Point3) -> Color {
         // Return solid cyan if no image data is available (debugging aid).
-        if self.image.height() <= 0 {
+        if self.image.height() == 0 {
             return Color::new(0.0, 1.0, 1.0);
         }
 

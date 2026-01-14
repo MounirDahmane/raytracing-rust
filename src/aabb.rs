@@ -4,16 +4,16 @@ use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
 use std::ops::Add;
 
-/// Axis-Aligned Bounding Box (AABB) represented by intervals along x, y, and z axes.
+/// Axis-Aligned Bounding Box (Aabb) represented by intervals along x, y, and z axes.
 #[derive(Copy, Clone)]
-pub struct AABB {
+pub struct Aabb {
     pub x: Interval,
     pub y: Interval,
     pub z: Interval,
 }
 
-impl AABB {
-    /// Creates a new empty AABB (all intervals empty).
+impl Aabb {
+    /// Creates a new empty Aabb (all intervals empty).
     pub fn new_empty() -> Self {
         Self {
             x: Interval::default(),
@@ -22,18 +22,18 @@ impl AABB {
         }
     }
 
-    /// Creates a new AABB with given intervals on each axis, padded to minimum size.
+    /// Creates a new Aabb with given intervals on each axis, padded to minimum size.
     pub fn new(x: Interval, y: Interval, z: Interval) -> Self {
         let mut x = x;
         let mut y = y;
         let mut z = z;
 
-        AABB::pad_to_minimums(&mut x, &mut y, &mut z);
+        Aabb::pad_to_minimums(&mut x, &mut y, &mut z);
 
         Self { x, y, z }
     }
 
-    /// Creates an AABB from two points treated as opposite corners.
+    /// Creates an Aabb from two points treated as opposite corners.
     /// Ensures the intervals are correctly ordered.
     pub fn new_from_points(a: Point3, b: Point3) -> Self {
         let mut x = if a[0] <= b[0] {
@@ -54,13 +54,13 @@ impl AABB {
             Interval::new(b[2], a[2])
         };
 
-        AABB::pad_to_minimums(&mut x, &mut y, &mut z);
+        Aabb::pad_to_minimums(&mut x, &mut y, &mut z);
 
         Self { x, y, z }
     }
 
-    /// Creates an AABB that encloses two AABBs.
-    pub fn new_(box0: AABB, box1: AABB) -> Self {
+    /// Creates an Aabb that encloses two Aabbs.
+    pub fn new_(box0: Aabb, box1: Aabb) -> Self {
         Self {
             x: Interval::new_(box0.x, box1.x),
             y: Interval::new_(box0.y, box1.y),
@@ -69,13 +69,15 @@ impl AABB {
     }
 }
 
-impl AABB {
+impl Aabb {
     /// Returns the index (0=x,1=y,2=z) of the longest axis of the bounding box.
     pub fn longest_axis(&self) -> i8 {
         if self.x.size() > self.y.size() {
             if self.x.size() > self.z.size() { 0 } else { 2 }
+        } else if self.y.size() > self.z.size() {
+            1
         } else {
-            if self.y.size() > self.z.size() { 1 } else { 2 }
+            2
         }
     }
 
@@ -91,14 +93,14 @@ impl AABB {
     }
 
     /// An empty bounding box constant.
-    pub const EMPTY: AABB = AABB {
+    pub const EMPTY: Aabb = Aabb {
         x: Interval::EMPTY,
         y: Interval::EMPTY,
         z: Interval::EMPTY,
     };
 
     /// A bounding box covering the entire universe (infinite intervals).
-    pub const UNIVERSE: AABB = AABB {
+    pub const UNIVERSE: Aabb = Aabb {
         x: Interval::UNIVERSE,
         y: Interval::UNIVERSE,
         z: Interval::UNIVERSE,
@@ -120,12 +122,12 @@ impl AABB {
     }
 }
 
-impl Add<Vec3> for AABB {
-    type Output = AABB;
+impl Add<Vec3> for Aabb {
+    type Output = Aabb;
 
-    /// Translates the AABB by a vector offset.
-    fn add(self, offset: Vec3) -> AABB {
-        AABB::new(
+    /// Translates the Aabb by a vector offset.
+    fn add(self, offset: Vec3) -> Aabb {
+        Aabb::new(
             self.x + offset.x(),
             self.y + offset.y(),
             self.z + offset.z(),
@@ -133,16 +135,16 @@ impl Add<Vec3> for AABB {
     }
 }
 
-impl Add<AABB> for Vec3 {
-    type Output = AABB;
+impl Add<Aabb> for Vec3 {
+    type Output = Aabb;
 
-    /// Translates the given AABB by this vector.
-    fn add(self, bbox: AABB) -> AABB {
+    /// Translates the given Aabb by this vector.
+    fn add(self, bbox: Aabb) -> Aabb {
         bbox + self
     }
 }
 
-impl Hittable for AABB {
+impl Hittable for Aabb {
     /// Checks if a ray hits the bounding box within the given `ray_t` interval.
     /// Updates `ray_t` to the overlapping intersection interval.
     fn hit(&self, r: &Ray, mut ray_t: Interval, _rec: &mut HitRecord) -> bool {
@@ -180,7 +182,7 @@ impl Hittable for AABB {
     }
 
     /// Returns an empty bounding box (this may be a placeholder).
-    fn bounding_box(&self) -> AABB {
-        AABB::new_empty()
+    fn bounding_box(&self) -> Aabb {
+        Aabb::new_empty()
     }
 }

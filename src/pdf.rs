@@ -1,12 +1,11 @@
-use std::rc::Rc;
-
 use crate::hittable::Hittable;
 use crate::onb::Onb;
 use crate::rtweekend;
 use crate::rtweekend::random_double;
 use crate::vec3::{Point3, Vec3};
+use std::sync::Arc;
 
-pub trait Pdf {
+pub trait Pdf: Send + Sync {
     fn value(&self, direction: &Vec3) -> f64;
     fn generate(&self) -> Vec3;
 }
@@ -50,12 +49,12 @@ impl Pdf for CosinePdf {
 }
 
 pub struct HittablePdf {
-    objects: Rc<dyn Hittable>,
+    objects: Arc<dyn Hittable + Send + Sync>,
     origin: Point3,
 }
 
 impl HittablePdf {
-    pub fn new(objects: Rc<dyn Hittable>, origin: &Point3) -> Self {
+    pub fn new(objects: Arc<dyn Hittable + Send + Sync>, origin: &Point3) -> Self {
         Self {
             objects,
             origin: *origin,
@@ -73,11 +72,11 @@ impl Pdf for HittablePdf {
 }
 
 pub struct MixturePdf {
-    p: [Rc<dyn Pdf>; 2],
+    p: [Arc<dyn Pdf + Send + Sync>; 2],
 }
 
 impl MixturePdf {
-    pub fn new(p0: Rc<dyn Pdf>, p1: Rc<dyn Pdf>) -> Self {
+    pub fn new(p0: Arc<dyn Pdf + Send + Sync>, p1: Arc<dyn Pdf + Send + Sync>) -> Self {
         Self { p: [p0, p1] }
     }
 }

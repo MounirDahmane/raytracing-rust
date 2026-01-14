@@ -1,16 +1,16 @@
 use crate::Ray;
-use crate::Rc;
-use crate::aabb::AABB;
+use crate::aabb::Aabb;
 use crate::hittable::{HitRecord, Hittable};
 use crate::hittable_list::HittableList;
 use crate::interval::Interval;
+use std::sync::Arc;
 
 /// Bounding Volume Hierarchy (BVH) node for efficient ray intersection tests.
 /// Each node contains left and right child hittables and a bounding box enclosing them.
 pub struct BvhNode {
-    left: Rc<dyn Hittable>,
-    right: Rc<dyn Hittable>,
-    bbox: AABB,
+    left: Arc<dyn Hittable + Send + Sync>,
+    right: Arc<dyn Hittable + Send + Sync>,
+    bbox: Aabb,
 }
 
 impl BvhNode {
@@ -25,19 +25,19 @@ impl BvhNode {
     }
 
     /// Recursively builds a BVH node from a slice of hittables within [start, end).
-    pub fn new(objects: &mut [Rc<dyn Hittable>], start: usize, end: usize) -> Self {
+    pub fn new(objects: &mut [Arc<dyn Hittable + Send + Sync>], start: usize, end: usize) -> Self {
         // Compute bounding box enclosing all objects in this range.
-        let mut bbox = AABB::EMPTY;
+        let mut bbox = Aabb::EMPTY;
 
-        for object_index in start..end {
-            bbox = AABB::new_(bbox, objects[object_index].bounding_box());
+        for item in objects.iter().take(end).skip(start) {
+            bbox = Aabb::new_(bbox, item.bounding_box());
         }
 
         let axis = bbox.longest_axis();
         let object_span = end - start;
 
-        let left: Rc<dyn Hittable>;
-        let right: Rc<dyn Hittable>;
+        let left: Arc<dyn Hittable + Send + Sync>;
+        let right: Arc<dyn Hittable + Send + Sync>;
 
         if object_span == 1 {
             // Leaf node: both children point to the single object.
@@ -59,8 +59,8 @@ impl BvhNode {
 
             let mid = start + object_span / 2;
 
-            left = Rc::new(BvhNode::new(objects, start, mid));
-            right = Rc::new(BvhNode::new(objects, mid, end));
+            left = Arc::new(BvhNode::new(objects, start, mid));
+            right = Arc::new(BvhNode::new(objects, mid, end));
         }
 
         Self { left, right, bbox }
@@ -83,7 +83,7 @@ impl Hittable for BvhNode {
     }
 
     /// Returns the bounding box enclosing this BVH node.
-    fn bounding_box(&self) -> AABB {
+    fn bounding_box(&self) -> Aabb {
         self.bbox
     }
 }
